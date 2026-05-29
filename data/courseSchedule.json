@@ -1,0 +1,62 @@
+{
+  "Monday": {
+    "morning": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01003"},
+      {"abbreviation": "Physics", "name": "Physics (Polytechnical Foundation)", "number": "10060"},
+      {"abbreviation": "Chemistry", "name": "Chemistry (Polytechnical Foundation)", "number": "26020"}
+    ],
+    "afternoon": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Stats", "name": "Statistics (Polytechnical Foundation)", "number": "02402"},
+      {"abbreviation": "Computer Programming", "name": "Computer Programming (Polytechnical Foundation)", "number": "02002"}
+    ]
+  },
+  "Tuesday": {
+    "morning": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Physics", "name": "Physics (Polytechnical Foundation)", "number": "10060"},
+      {"abbreviation": "Chemistry", "name": "Chemistry (Polytechnical Foundation)", "number": "26020"}
+    ],
+    "afternoon": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Stats", "name": "Statistics (Polytechnical Foundation)", "number": "02402"},
+      {"abbreviation": "Computer Programming", "name": "Computer Programming (Polytechnical Foundation)", "number": "02002"}
+    ]
+  },
+  "Wednesday": {
+    "morning": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Physics", "name": "Physics (Polytechnical Foundation)", "number": "10060"},
+      {"abbreviation": "Chemistry", "name": "Chemistry (Polytechnical Foundation)", "number": "26020"}
+    ],
+    "afternoon": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Stats", "name": "Statistics (Polytechnical Foundation)", "number": "02402"},
+      {"abbreviation": "Computer Programming", "name": "Computer Programming (Polytechnical Foundation)", "number": "02002"}
+    ]
+  },
+  "Thursday": {
+    "morning": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Physics", "name": "Physics (Polytechnical Foundation)", "number": "10060"},
+      {"abbreviation": "Chemistry", "name": "Chemistry (Polytechnical Foundation)", "number": "26020"}
+    ],
+    "afternoon": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Stats", "name": "Statistics (Polytechnical Foundation)", "number": "02402"},
+      {"abbreviation": "Computer Programming", "name": "Computer Programming (Polytechnical Foundation)", "number": "02002"}
+    ]
+  },
+  "Friday": {
+    "morning": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Physics", "name": "Physics (Polytechnical Foundation)", "number": "10060"},
+      {"abbreviation": "Chemistry", "name": "Chemistry (Polytechnical Foundation)", "number": "26020"}
+    ],
+    "afternoon": [
+      {"abbreviation": "Math 1a", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Stats", "name": "Statistics (Polytechnical Foundation)", "number": "02402"},
+      {"abbreviation": "Computer Programming", "name": "Computer Programming (Polytechnical Foundation)", "number": "02002"}
+    ]
+  }
+}

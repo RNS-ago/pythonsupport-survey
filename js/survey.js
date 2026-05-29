@@ -66,6 +66,53 @@ function loadCoursesDatalist() {
 }
 
 
+function loadCourseSchedule() {
+  (async () => {
+    try {
+      const res = await fetch('./data/courseSchedule.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const courseSchedule = await res.json();
+      console.log(courseSchedule);
+
+      let dateTime = new Date();
+      let dayOfTheWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dateTime.getDay()];
+      let time = dateTime.getHours();
+      let timeSlot = (time >= 12) ? "afternoon" : "morning";
+
+      let currentCourses = courseSchedule[dayOfTheWeek][timeSlot] ?? [];
+
+      let buttonArray = document.getElementById("course_button_array");
+      for (const course of currentCourses) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = course["abbreviation"];
+        button.name = course["name"];
+        button.courseNumber = course["number"];
+        button.className = 'px-6 py-3 text-lg bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors w-full h-full';
+
+        button.addEventListener('click', () => {
+          document.getElementById('course_number').value = `${button.courseNumber} - ${button.name}`;
+          document.querySelectorAll('#course_button_array button')
+            .forEach(b => b.classList.remove('bg-yellow-700', 'ring-2'));
+          button.classList.add('bg-yellow-700', 'ring-2');
+        });
+
+        buttonArray.appendChild(button);
+      }
+      buttonArray.className = 'grid gap-x-8';
+      buttonArray.style.gridTemplateColumns = `repeat(${currentCourses.length}, 1fr)`;
+      
+
+      console.log(dayOfTheWeek, timeSlot);
+      console.log(courseSchedule[dayOfTheWeek])
+    } catch (err) {
+      console.error('courseSchedule.json load failed:', err);
+    }
+  })();
+}
+
+
 export async function verifyOneTimeToken() {
   if (!linkToken) return true;
   try {
@@ -87,6 +134,7 @@ export async function verifyOneTimeToken() {
 export function wireSurveyForm(){
   verifyOneTimeToken();
   loadCoursesDatalist(); 
+  loadCourseSchedule();
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch {}
 
   const form = document.getElementById("surveyForm");
@@ -243,6 +291,9 @@ export function wireSurveyForm(){
           form.reset();
           form.role.value = 'student';
           toggleRole();
+          const buttonArray = document.getElementById("course_button_array");
+          buttonArray.innerHTML = '';
+          loadCourseSchedule();
           const preferWD = qpWD || (localStorage.getItem(STORAGE.WORKSHOP) === 'true');
           document.getElementById('workshop_yes').checked = !!preferWD;
           document.getElementById('workshop_no').checked  = !preferWD;
