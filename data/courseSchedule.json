@@ -5,8 +5,8 @@
       {"abbreviation": "Physics", "name": "Physics (Polytechnical Foundation)", "number": "10060"}
     ],
     "afternoon": [
-      {"abbreviation": "Math 1a (01001)", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
-      {"abbreviation": "Math 1a (01003)", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01003"}
+      {"abbreviation": "Math 1a (DAN)", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01001"},
+      {"abbreviation": "Math 1a (ENG)", "name": "Mathematics 1a (Polytechnical foundation)", "number": "01003"}
     ]
   },
   "Tuesday": {
