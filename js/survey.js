@@ -3,19 +3,27 @@ import { getSavedKey } from './auth.js';
 import { showError, friendlyError } from './errors.js';
 import { syncFabVisibility } from './kiosk.js';
 
-// === Minimal native datalist loader ===
-function loadCoursesDatalist() {
+
+function setupCourseAutocomplete() {
+  const input = document.getElementById('course_number');
+  const list  = document.getElementById('course-ac-list');
+  const wrap  = input?.closest('.course-ac');
+  if (!input || !list || !wrap) return;
+
+  const MAX = 50;          
+  let courses = [];
+  let activeIndex = -1;
+
+  
   (async () => {
     try {
       const res = await fetch('./data/courses.csv', { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
 
-      // robust-ish parse: handle quoted names/newlines
       const lines = text.split(/\r?\n/);
       const records = [];
       let buf = '', inQuotes = false;
-
       for (const line of lines) {
         const q = (line.match(/"/g) || []).length;
         if (!inQuotes) {
@@ -28,41 +36,102 @@ function loadCoursesDatalist() {
         }
         records.push(buf);
       }
-
-      // drop header if present
       if (records.length && /course|code/i.test(records[0])) records.shift();
 
-      // Build "CODE - Name" options
-      const options = [];
+      const out = [];
       for (const rec of records) {
         const idx = rec.indexOf(',');
         if (idx === -1) continue;
         const code = rec.slice(0, idx).trim();
-        let name = rec.slice(idx + 1)
-          .replace(/\r/g, '')
-          .replace(/CR$/, '')
-          .replace(/^"+|"+$/g, '')
-          .trim();
+        const name = rec.slice(idx + 1)
+          .replace(/\r/g, '').replace(/CR$/, '').replace(/^"+|"+$/g, '').trim();
         if (!code || !name) continue;
-        options.push(`${code} - ${name}`);
+        out.push(`${code} - ${name}`);
       }
-
-      // Support either id used in your HTML
-      const dl = document.getElementById('course-suggestions') || document.getElementById('courses');
-      if (!dl) return;
-
-      dl.innerHTML = '';
-      const frag = document.createDocumentFragment();
-      for (const v of options) {
-        const opt = document.createElement('option');
-        opt.value = v;
-        frag.appendChild(opt);
-      }
-      dl.appendChild(frag);
+      courses = out;
     } catch (err) {
       console.error('courses.csv load failed:', err);
     }
   })();
+
+  function filter(q) {
+    q = q.trim().toLowerCase();
+    if (!q) return courses.slice(0, MAX);
+    const starts = [], contains = [];
+    for (const c of courses) {
+      const i = c.toLowerCase().indexOf(q);
+      if (i === 0) starts.push(c);
+      else if (i > 0) contains.push(c);
+    }
+    return starts.concat(contains);
+  }
+
+  function open()  { list.hidden = false; input.setAttribute('aria-expanded', 'true'); }
+  function close() {
+    list.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    activeIndex = -1;
+  }
+  function choose(val) {
+    input.value = val;
+    close();
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function render(items) {
+    list.innerHTML = '';
+    if (!items.length) { close(); return; }
+    const frag = document.createDocumentFragment();
+    items.slice(0, MAX).forEach((val, i) => {
+      const li = document.createElement('li');
+      li.className = 'course-ac-item';
+      li.id = `course-ac-opt-${i}`;
+      li.setAttribute('role', 'option');
+      li.textContent = val;
+      li.addEventListener('pointerdown', (e) => { e.preventDefault(); choose(val); });
+      frag.appendChild(li);
+    });
+    list.appendChild(frag);
+    open();
+  }
+
+  function setActive(i) {
+    const items = list.querySelectorAll('.course-ac-item');
+    if (!items.length) return;
+    activeIndex = (i + items.length) % items.length;
+    items.forEach(el => el.classList.remove('is-active'));
+    const el = items[activeIndex];
+    el.classList.add('is-active');
+    el.scrollIntoView({ block: 'nearest' });
+    input.setAttribute('aria-activedescendant', el.id);
+  }
+
+  input.addEventListener('input', () => render(filter(input.value)));
+  input.addEventListener('focus', () => render(filter(input.value)));
+  input.addEventListener('blur',  () => setTimeout(close, 120));
+
+  input.addEventListener('keydown', (e) => {
+    if (list.hidden) {
+      if (e.key === 'ArrowDown') render(filter(input.value));
+      return;
+    }
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); setActive(activeIndex + 1); break;
+      case 'ArrowUp':   e.preventDefault(); setActive(activeIndex - 1); break;
+      case 'Enter':
+        if (activeIndex >= 0) {
+          e.preventDefault();
+          choose(list.querySelectorAll('.course-ac-item')[activeIndex].textContent);
+        }
+        break;
+      case 'Escape': close(); break;
+    }
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (!wrap.contains(e.target)) close();
+  });
 }
 
 
@@ -133,7 +202,7 @@ export async function verifyOneTimeToken() {
 
 export function wireSurveyForm(){
   verifyOneTimeToken();
-  loadCoursesDatalist(); 
+  setupCourseAutocomplete(); 
   loadCourseSchedule();
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch {}
 
