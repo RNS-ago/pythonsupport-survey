@@ -272,6 +272,7 @@ export function wireSurveyForm(){
       course_number: (document.getElementById('course_number').value || '').trim() || null,
       building_Number: linkToken ? null : state.selectedBuilding,
       workshop: (form.elements['workshop'] && form.elements['workshop'].value === 'yes'),
+      used_ai: (form.elements['used_ai'] && form.elements['used_ai'].value === 'yes'),
       token: linkToken || null,
     };
 

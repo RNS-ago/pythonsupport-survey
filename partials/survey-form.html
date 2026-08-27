@@ -40,6 +40,7 @@
   body.kiosk-mode #surveyCard .form-radio { width: 1.5rem; height: 1.5rem; }
   body.kiosk-mode #surveyCard .prefix-s { font-size: 1.2rem !important; padding-left: 1rem; padding-right: 1rem; }
   body.kiosk-mode #surveyPage #roleWorkshopGroup .wk-inline > span { white-space: nowrap; }
+  body.kiosk-mode #surveyPage #roleWorkshopGroup .ai-stacked > span { white-space: nowrap; }
 
   /* Align "Attended workshop?" inline with Yes/No and flush to the right on ≥sm */
   @media (min-width: 640px) {
@@ -53,6 +54,17 @@
     #surveyPage #roleWorkshopGroup .wk-inline > span {
       white-space: nowrap;       /* prevent "Attended workshop?" from breaking */
     }
+  }
+
+  /* "Tried fixing with AI before?" — question on its own line, Yes/No stacked underneath */
+  #surveyPage #roleWorkshopGroup .ai-stacked > span {
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  #surveyPage #roleWorkshopGroup .ai-stacked .ai-options {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
   }
 /* Hide Chrome/Chromium datalist arrow */
 input[list]::-webkit-calendar-picker-indicator { display: none !important; }
@@ -103,6 +115,22 @@ input[list] { -webkit-appearance: none; appearance: none; background-image: none
         <div id="usernameWrapper" class="hidden order-2 sm:order-3 sm:col-span-3">
           <label class="block text-gray-700 mb-2 font-medium text-lg" for="dtu_username">DTU Credentials:</label>
           <input id="dtu_username" name="dtu_username" type="text" pattern="[A-Za-z]{3,20}" placeholder="e.g. manufer" enterkeyhint="next" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" class="w-full border border-gray-300 p-3 sm:p-4 text-lg rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"/>
+        </div>
+
+        <div class="order-4 sm:order-4 sm:col-span-3">
+          <div class="ai-stacked">
+            <span class="block text-gray-700 mb-2 font-medium text-lg">Tried fixing with AI before?</span>
+            <div class="ai-options">
+              <label class="inline-flex items-center text-gray-700 text-lg">
+                <input type="radio" id="used_ai_yes" name="used_ai" value="yes" class="form-radio h-5 w-5 text-red-500 border-gray-300" required />
+                <span class="ml-2">Yes</span>
+              </label>
+              <label class="inline-flex items-center text-gray-700 text-lg">
+                <input type="radio" id="used_ai_no" name="used_ai" value="no" class="form-radio h-5 w-5 text-red-500 border-gray-300" />
+                <span class="ml-2">No</span>
+              </label>
+            </div>
+          </div>
         </div>
       </div>
 
