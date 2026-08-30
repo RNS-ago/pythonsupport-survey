@@ -2,6 +2,7 @@ import { endpoint, STORAGE, state, linkToken, qpWD } from './config.js';
 import { getSavedKey } from './auth.js';
 import { showError, friendlyError } from './errors.js';
 import { syncFabVisibility } from './kiosk.js';
+import { visualViewportBox, ensureVisible } from './viewport.js';
 
 
 function setupCourseAutocomplete() {
@@ -66,9 +67,52 @@ function setupCourseAutocomplete() {
     return starts.concat(contains);
   }
 
-  function open()  { list.hidden = false; input.setAttribute('aria-expanded', 'true'); }
+  const LIST_MIN  = 96;    // never squash below ~2 suggestions
+  const GAP       = 12;
+  let adjusting   = false; // re-entrancy guard: our own scrolling fires events
+
+  // Fit the dropdown into whatever the keyboard has left of the visual viewport,
+  // flipping it above the field when there is more room up there.
+  function positionList() {
+    if (list.hidden) return;
+
+    // Drop our inline cap first so we can read the one CSS defines for the
+    // current mode (16rem supporter / 22rem kiosk) and never exceed it.
+    list.style.maxHeight = '';
+    const cssMax = parseFloat(getComputedStyle(list).maxHeight) || Infinity;
+
+    const vp = visualViewportBox();
+    const r  = input.getBoundingClientRect();
+    const below = vp.bottom - r.bottom - GAP;
+    const above = r.top - vp.top - GAP;
+
+    const flip = below < LIST_MIN && above > below && above >= LIST_MIN;
+    list.classList.toggle('is-above', flip);
+    const room = Math.max(LIST_MIN, flip ? above : below);
+    list.style.maxHeight = `${Math.round(Math.min(room, cssMax))}px`;
+  }
+
+  // Size the panel, scroll field + panel clear of the keyboard, then re-size
+  // against the position we actually ended up at.
+  function reveal() {
+    if (adjusting) return;
+    adjusting = true;
+    try {
+      positionList();
+      ensureVisible(input, { companion: list.hidden ? null : list });
+      positionList();
+    } finally { adjusting = false; }
+  }
+
+  function open()  {
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    reveal();
+  }
   function close() {
     list.hidden = true;
+    list.classList.remove('is-above');
+    list.style.maxHeight = '';
     input.setAttribute('aria-expanded', 'false');
     input.removeAttribute('aria-activedescendant');
     activeIndex = -1;
@@ -132,6 +176,15 @@ function setupCourseAutocomplete() {
   document.addEventListener('pointerdown', (e) => {
     if (!wrap.contains(e.target)) close();
   });
+
+  // The keyboard opening/closing/resizing changes the visual viewport without
+  // any scroll or input event, so re-fit the open dropdown when it does.
+  const onViewportChange = () => { if (!list.hidden) reveal(); };
+  window.visualViewport?.addEventListener('resize', onViewportChange);
+  window.visualViewport?.addEventListener('scroll', onViewportChange);
+  window.addEventListener('scroll', () => {
+    if (!list.hidden && !adjusting) positionList();
+  }, { passive: true });
 }
 
 

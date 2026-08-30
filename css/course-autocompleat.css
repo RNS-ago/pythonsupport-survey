@@ -22,6 +22,14 @@
 }
 .course-ac-list[hidden] { display: none; }
 
+/* Flipped above the field when the on-screen keyboard leaves no room below.
+   max-height is set inline by the autocomplete to the space actually available. */
+.course-ac-list.is-above {
+  top: auto;
+  bottom: calc(100% + 4px);
+  box-shadow: 0 -10px 25px rgba(17,24,39,.12);
+}
+
 /* each suggestion */
 .course-ac-item {
   padding: .625rem .75rem;

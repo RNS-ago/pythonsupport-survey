@@ -1,4 +1,5 @@
 import { STORAGE, linkToken } from './config.js';
+import { keyboardOcclusion, isKeyboardOpen, ensureVisible, openPanelFor } from './viewport.js';
 
 // --- HARD KIOSK & WAKE LOCK SUPPORT ---
 // If true, users cannot exit via the 5-tap corner or other soft exits.
@@ -12,6 +13,7 @@ let __wakeHandlersBound = false;
 // VisualViewport keyboard offset helpers
 let __vvBound = false;
 let __kbdOpen = false;
+let __lastOcclusion = -1;
 
 async function requestWakeLock() {
   try {
@@ -72,28 +74,49 @@ async function ensureOrientation() {
 }
 
 // --- VisualViewport-aware keyboard offset (tablet mode) ---
+function isTextField(el) {
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
+}
+
+// Scroll the focused field (and its open dropdown, if any) clear of the keyboard.
+export function keepFocusVisible(behavior = 'auto') {
+  const ae = document.activeElement;
+  if (!isTextField(ae)) return;
+  ensureVisible(ae, { companion: openPanelFor(ae), behavior });
+}
+
 function updateKbdOffset() {
   if (!isKiosk()) return;
-  const vv = window.visualViewport;
-  if (!vv) return;
+  if (!window.visualViewport) return;
 
-  // How much of the layout viewport is occluded by the keyboard
-  const occlusion = Math.max(0, (window.innerHeight || 0) - (vv.height || 0) - (vv.offsetTop || 0));
+  // Expose the occlusion to CSS so #surveyPage can pad its bottom, which is what
+  // gives us the room to scroll the lower fields above the keyboard at all.
+  const occlusion = keyboardOcclusion();
+  const changed = occlusion !== __lastOcclusion;
+  __lastOcclusion = occlusion;
+  if (changed) {
+    try { document.documentElement.style.setProperty('--kbd-offset', `${occlusion}px`); } catch {}
+  }
 
-  // Expose to CSS so #surveyPage can add bottom padding
-  try { document.documentElement.style.setProperty('--kbd-offset', `${occlusion}px`); } catch {}
-
-  const nowOpen = occlusion > 80; // heuristic
+  const nowOpen = isKeyboardOpen();
   if (nowOpen && !__kbdOpen) {
     __kbdOpen = true;
-    // Gently keep the focused control visible without re-centering the card
-    const ae = document.activeElement;
-    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) {
-      try { ae.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' }); } catch {}
-    }
+    // The padding-bottom above only lands after a layout pass.
+    requestAnimationFrame(() => keepFocusVisible('smooth'));
   } else if (!nowOpen && __kbdOpen) {
     __kbdOpen = false;
+  } else if (nowOpen && changed) {
+    // Keyboard resized (language switch, prediction bar) — re-check. Guarded on
+    // `changed` so plain scrolling doesn't snap the page back at the user.
+    keepFocusVisible('auto');
   }
+}
+
+// Moving between fields with the keyboard already up doesn't resize the visual
+// viewport, so focus changes need their own pass.
+function onKioskFocusIn() {
+  if (!isKiosk() || !__kbdOpen) return;
+  requestAnimationFrame(() => keepFocusVisible('smooth'));
 }
 
 function bindVisualViewport() {
@@ -102,6 +125,7 @@ function bindVisualViewport() {
     window.visualViewport.addEventListener('resize', updateKbdOffset);
     window.visualViewport.addEventListener('scroll', updateKbdOffset);
     window.addEventListener('resize', updateKbdOffset);
+    document.addEventListener('focusin', onKioskFocusIn);
     __vvBound = true;
     updateKbdOffset(); // init
   } catch {}
@@ -115,9 +139,11 @@ function unbindVisualViewport() {
       window.visualViewport.removeEventListener('scroll', updateKbdOffset);
     }
     window.removeEventListener('resize', updateKbdOffset);
+    document.removeEventListener('focusin', onKioskFocusIn);
   } catch {}
   __vvBound = false;
   __kbdOpen = false;
+  __lastOcclusion = -1;
   try { document.documentElement.style.removeProperty('--kbd-offset'); } catch {}
 }
 

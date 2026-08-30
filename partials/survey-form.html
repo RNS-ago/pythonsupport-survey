@@ -23,8 +23,15 @@
   body.student-flow:not(.kiosk-mode) #surveyPage #surveyCard { max-width: 44rem; }
 
   /* === Kiosk / Tablet mode — force LARGE width like building selector === */
-  /* Header is hidden in tablet mode, so centre against the full viewport */
-  body.kiosk-mode #surveyPage { padding: 1rem !important; min-height: 100vh !important; }
+  /* Header is hidden in tablet mode, so centre against the full viewport.
+     --kbd-offset is set by kiosk.js while the on-screen keyboard is up: it both
+     shrinks the centring box (lifting the card) and adds the scroll room needed
+     to bring the lower fields above the keyboard. */
+  body.kiosk-mode #surveyPage {
+    padding: 1rem !important;
+    padding-bottom: calc(1rem + var(--kbd-offset, 0px)) !important;
+    min-height: 100vh !important;
+  }
   @supports (min-height: 100dvh) {
     body.kiosk-mode #surveyPage { min-height: 100dvh !important; }
   }
