@@ -142,12 +142,15 @@ function loadCourseSchedule() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const courseSchedule = await res.json();
-      console.log(courseSchedule);
 
       let dateTime = new Date();
       let dayOfTheWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dateTime.getDay()];
       let time = dateTime.getHours();
       let timeSlot = (time >= 12) ? "afternoon" : "morning";
+
+      if (dayOfTheWeek === "Saturday" || dayOfTheWeek === "Sunday") {
+        return;
+      }
 
       let currentCourses = courseSchedule[dayOfTheWeek][timeSlot] ?? [];
 
@@ -173,8 +176,6 @@ function loadCourseSchedule() {
       buttonArray.style.gridTemplateColumns = `repeat(${currentCourses.length}, 1fr)`;
       
 
-      console.log(dayOfTheWeek, timeSlot);
-      console.log(courseSchedule[dayOfTheWeek])
     } catch (err) {
       console.error('courseSchedule.json load failed:', err);
     }
