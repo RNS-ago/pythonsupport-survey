@@ -23,11 +23,17 @@
   body.student-flow:not(.kiosk-mode) #surveyPage #surveyCard { max-width: 44rem; }
 
   /* === Kiosk / Tablet mode — force LARGE width like building selector === */
+  /* Header is hidden in tablet mode, so centre against the full viewport */
   body.kiosk-mode #surveyPage { padding: 1rem !important; min-height: 100vh !important; }
+  @supports (min-height: 100dvh) {
+    body.kiosk-mode #surveyPage { min-height: 100dvh !important; }
+  }
   body.kiosk-mode #surveyCard{
     max-width: min(96vw, 72rem) !important; /* ~xl:max-w-6xl, fill most of tablet width */
     width: 100% !important;
-    margin: 1rem auto !important;
+    /* No vertical margin — #surveyPage already pads 1rem; the extra 2rem was
+       enough to push the taller form past the viewport and break centring. */
+    margin: 0 auto !important;
     border-radius: 0.75rem !important; /* rounded card */
     box-shadow: 0 10px 25px rgba(17,24,39,.12) !important;
     padding: 2rem 2.5rem !important; /* p-8 md:p-10 feel */
@@ -41,6 +47,18 @@
   body.kiosk-mode #surveyCard .prefix-s { font-size: 1.2rem !important; padding-left: 1rem; padding-right: 1rem; }
   body.kiosk-mode #surveyPage #roleWorkshopGroup .wk-inline > span { white-space: nowrap; }
   body.kiosk-mode #surveyPage #roleWorkshopGroup .ai-stacked > span { white-space: nowrap; }
+
+  /* Short tablet viewports (landscape): tighten the vertical rhythm so the
+     whole form still fits on one screen and stays centred instead of scrolling */
+  @media (max-height: 860px) {
+    body.kiosk-mode #surveyCard { padding: 1.25rem 2rem !important; }
+    body.kiosk-mode #surveyCard h2 { font-size: 2rem !important; }
+    body.kiosk-mode #surveyCard > div:first-child { margin-bottom: 1rem !important; }
+    body.kiosk-mode #surveyCard #surveyForm > * + * { margin-top: 1rem !important; }
+    body.kiosk-mode #surveyCard #roleWorkshopGroup { gap: 0.75rem 1.5rem !important; }
+    body.kiosk-mode #surveyCard .course-ac { margin-top: 0.75rem !important; }
+    body.kiosk-mode #surveyCard #submitButton { padding-top: 0.75rem !important; padding-bottom: 0.75rem !important; }
+  }
 
   /* Align "Attended workshop?" inline with Yes/No and flush to the right on ≥sm */
   @media (min-width: 640px) {
@@ -119,7 +137,7 @@ input[list] { -webkit-appearance: none; appearance: none; background-image: none
 
         <div class="order-4 sm:order-4 sm:col-span-3">
           <div class="ai-stacked">
-            <span class="block text-gray-700 mb-2 font-medium text-lg">Tried fixing with AI before?</span>
+            <span class="block text-gray-700 mb-2 font-medium text-lg">Tried fixing with AI before? (optional)</span>
             <div class="ai-options">
               <label class="inline-flex items-center text-gray-700 text-lg">
                 <input type="radio" id="used_ai_yes" name="used_ai" value="yes" class="form-radio h-5 w-5 text-red-500 border-gray-300" required />
