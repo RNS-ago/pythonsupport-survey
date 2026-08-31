@@ -1,5 +1,5 @@
 import { STORAGE, linkToken, hasOneTimeToken, isQrLink, state } from './config.js';
-import { isAuthValid, showLogin, hideLogin, wireLogin } from './auth.js';
+import { isAuthValid, showLogin, hideLogin, wireLogin, gateLogin, isOfflineMode, setOfflineMode } from './auth.js';
 import { wireKiosk, applyKiosk, isKiosk, syncFabVisibility } from './kiosk.js';
 import { wireBuildingPage, showBuildingSelection, showSurveyForm, applySidebarVisibility } from './building.js';
 import { wireSurveyForm } from './survey.js';
@@ -32,10 +32,10 @@ function applyStudentFlowLayout() {
 }
 applyStudentFlowLayout();
 
-// Show/hide login
+// Show/hide login. Supporters skip the code entirely while the proxy is
+// unreachable — see gateLogin() / the offline override in auth.js.
 if (hasOneTimeToken || isQrLink) { hideLogin(); }
-else if (isAuthValid())          { hideLogin(); }
-else                             { showLogin(); }
+else                             { setOfflineMode(isOfflineMode()); await gateLogin(); }
 
 // Initial page
 if (hasOneTimeToken)      showSurveyForm();

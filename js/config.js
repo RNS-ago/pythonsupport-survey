@@ -9,6 +9,7 @@ export const STORAGE = {
   WORKSHOP: 'workshopDay',
   KIOSK: 'kioskMode',
   FAILSAFE: 'surveyFailsafeQueue',
+  OFFLINE: 'surveyOfflineMode',
 };
 
 export const params = new URLSearchParams(location.search);

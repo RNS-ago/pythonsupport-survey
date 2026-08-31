@@ -3,8 +3,11 @@
 // queued locally, appended to a plain-text backup file the supporter picks
 // once (Documents), and re-sent automatically as soon as the backend answers
 // again.
-import { endpoint, linkToken, STORAGE } from './config.js';
-import { getSavedKey } from './auth.js';
+import { endpoint, linkToken, isQrLink, STORAGE } from './config.js';
+import {
+  getSavedKey, isAuthValid, clearSavedKey, requireCode, probeBackend,
+  isCredentialFault, suppressCodePrompt, isCodePromptSuppressed
+} from './auth.js';
 
 export const FAILSAFE_QUEUE = STORAGE.FAILSAFE;
 
@@ -14,6 +17,12 @@ const IDB_STORE    = 'handles';
 const HANDLE_KEY   = 'backupFile';
 const RETRY_MS     = 60_000;
 const MAX_ATTEMPTS = 20;
+const MAX_CRED_FAULTS = 3;
+
+// Only a supporter's own device has a daily code and a place to put a backup
+// file. One-time links and QR links are student flows: they carry their own
+// credentials (or none, as before) and must never see a login prompt.
+const isSupporterDevice = !linkToken && !isQrLink;
 
 const HEADER = [
   'saved_at','role','student_number','username','satisfaction',
@@ -210,7 +219,30 @@ export async function saveFailedSubmission(payload, reason = 'network error') {
 
 /* ------------------------------------------------------------------ retry --- */
 
-let retrying = false;
+let retrying   = false;
+let asking     = false;
+let credFaults = 0;
+
+/**
+ * A supporter let in under the offline override holds no daily code, and the
+ * proxy will not take a response without one. So the moment the proxy answers
+ * again, ask for the code — before anything is uploaded. Returns true once we
+ * hold a usable code, false while we should keep queueing.
+ */
+export async function ensureCredentials() {
+  if (isAuthValid()) return true;
+  if (isCodePromptSuppressed()) return false;   // supporter opted out of asking
+  if (asking) return false;                     // a prompt is already open
+  if (!(await probeBackend())) return false;    // still down, nothing to ask for
+
+  asking = true;
+  try {
+    const n = pendingCount();
+    return await requireCode(n
+      ? `The connection is back. Enter today's code to upload ${n} saved response${n === 1 ? '' : 's'}.`
+      : "The connection is back. Enter today's code to continue.");
+  } finally { asking = false; }
+}
 
 /** Re-send everything queued. Records the backend rejects are kept, not retried. */
 export async function retryPending() {
@@ -218,11 +250,18 @@ export async function retryPending() {
   const records = readQueue();
   if (!records.length) return 0;
 
+  // Records carrying their own one-time token need no daily code; on a
+  // supporter's device the rest do.
+  const needsKey = isSupporterDevice && records.some(r => !r.rejected && !r.payload?.token);
+  if (needsKey && !(await ensureCredentials())) return 0;
+
   retrying = true;
   let sent = 0;
   try {
     for (const rec of records) {
       if (rec.rejected || (rec.attempts || 0) >= MAX_ATTEMPTS) continue;
+      // Never post with an empty key: the 401 would look like a real rejection.
+      if (isSupporterDevice && !rec.payload?.token && !isAuthValid()) continue;
 
       const headers = { 'Content-Type': 'application/json' };
       if (rec.payload?.token) headers['x-token'] = rec.payload.token;
@@ -235,7 +274,14 @@ export async function retryPending() {
         });
       } catch { break; }                  // still offline, stop for now
 
-      if (response.ok) { rec.sent = true; sent++; }
+      if (response.ok) { rec.sent = true; sent++; credFaults = 0; }
+      else if (isSupporterDevice && isCredentialFault(response.status)) {
+        // The code is being refused, not the response. Keep every record and
+        // go get a usable code instead of burning them on a doomed retry.
+        clearSavedKey();
+        if (++credFaults >= MAX_CRED_FAULTS) suppressCodePrompt();
+        break;
+      }
       else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
         rec.rejected = true;              // backend will never accept it
         rec.reason = `${rec.reason} / rejected ${response.status}`;
@@ -276,12 +322,12 @@ export function wireFailsafe() {
     const unsaved = unfiled().length;
     if (saveBtn) {
       // Students on a one-time link have nowhere to put a file — queue silently.
-      saveBtn.classList.toggle('hidden', !(unsaved && !linkToken));
+      saveBtn.classList.toggle('hidden', !(unsaved && isSupporterDevice));
       saveBtn.textContent = canPickFile() ? 'Save backup file' : 'Download backup file';
       saveBtn.disabled = false;
     }
     if (tab) {
-      const show = !!(n && !linkToken);
+      const show = !!(n && isSupporterDevice);
       tab.classList.toggle('hidden', !show);
       tab.classList.toggle('flex', show);
       if (tabCnt) tabCnt.textContent = String(n);
@@ -294,7 +340,7 @@ export function wireFailsafe() {
 
   // Last chance to flag unsaved responses before the tab goes away.
   window.addEventListener('beforeunload', (e) => {
-    if (!unfiled().length || linkToken) return;
+    if (!unfiled().length || !isSupporterDevice) return;
     e.preventDefault();
     e.returnValue = '';
   });
