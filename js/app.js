@@ -3,6 +3,7 @@ import { isAuthValid, showLogin, hideLogin, wireLogin } from './auth.js';
 import { wireKiosk, applyKiosk, isKiosk, syncFabVisibility } from './kiosk.js';
 import { wireBuildingPage, showBuildingSelection, showSurveyForm, applySidebarVisibility } from './building.js';
 import { wireSurveyForm } from './survey.js';
+import { wireFailsafe } from './failsafe.js';
 
 async function loadPartial(selector, url){
   const host = document.querySelector(selector);
@@ -22,6 +23,7 @@ wireLogin();
 wireKiosk();
 wireBuildingPage();
 wireSurveyForm();
+wireFailsafe();
 
 // Student-flow layout rule: hide header/pages for students (token/QR or kiosk)
 function applyStudentFlowLayout() {

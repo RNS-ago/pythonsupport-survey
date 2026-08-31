@@ -3,6 +3,7 @@ import { getSavedKey } from './auth.js';
 import { showError, friendlyError } from './errors.js';
 import { syncFabVisibility } from './kiosk.js';
 import { visualViewportBox, ensureVisible } from './viewport.js';
+import { saveFailedSubmission } from './failsafe.js';
 
 
 function setupCourseAutocomplete() {
@@ -445,12 +446,23 @@ export function wireSurveyForm(){
             const t = await response.text(); if (t && t.trim().length) raw = t.trim();
           }
         } catch {}
-        showError(friendlyError(raw, response.status, !!linkToken), response.status);
+        const { title, message } = friendlyError(raw, response.status, !!linkToken);
+        // Only the backend's own faults are worth keeping: a rejected student
+        // number would just be rejected again.
+        const keepable = response.status >= 500 || response.status === 429;
+        const saved = keepable
+          ? await saveFailedSubmission(payload, `HTTP ${response.status}`)
+          : null;
+        showError({ title, message: saved ? `${message} ${savedNote(saved)}` : message }, response.status);
         if (form.role.value === 'student') { studentNumInput.focus(); } else { usernameInput?.focus(); }
       }
     } catch (err) {
       console.error("submit failed:", err);
-      showError('A network error occurred. Please check your connection and try again.');
+      const saved = await saveFailedSubmission(payload, err?.message || 'network error');
+      showError({
+        title: "We couldn't reach the server",
+        message: `A network error occurred. ${savedNote(saved)}`
+      });
     } finally {
       submitButton.disabled = false;
       submitButton.textContent = 'Submit Survey';
@@ -467,4 +479,12 @@ export function wireSurveyForm(){
 
 function inKiosk() {
   return document.body.classList.contains('kiosk-mode');
+}
+
+// What to tell the user once the failsafe has taken the response.
+function savedNote(saved) {
+  if (!saved?.stored) return 'The response could not be saved — please write it down.';
+  if (saved.filed)    return 'The response was saved to your backup file and will be sent automatically when the connection is back.';
+  if (linkToken)      return 'Your response is saved and will be sent automatically when the connection is back.';
+  return 'The response is saved on this device and will be sent automatically when the connection is back. Use “Save backup file” to also keep a copy in Documents.';
 }

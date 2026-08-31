@@ -1,9 +1,10 @@
 import { endpoint, STORAGE } from './config.js';
-// Reset everything on refresh except the saved API key
+// Reset everything on refresh except the saved API key and any responses the
+// failsafe still holds for a backend that was unreachable.
 try {
-  const keep = localStorage.getItem(STORAGE.AUTH);
+  const keep = [STORAGE.AUTH, STORAGE.FAILSAFE].map(k => [k, localStorage.getItem(k)]);
   localStorage.clear();
-  if (keep !== null) localStorage.setItem(STORAGE.AUTH, keep);
+  for (const [k, v] of keep) if (v !== null) localStorage.setItem(k, v);
 } catch {}
 export function getSavedKey() {
   try { const saved = localStorage.getItem(STORAGE.AUTH); return saved ? saved.split("|") : [null,null]; }
