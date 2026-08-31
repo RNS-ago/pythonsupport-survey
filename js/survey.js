@@ -2,20 +2,29 @@ import { endpoint, STORAGE, state, linkToken, qpWD } from './config.js';
 import { getSavedKey } from './auth.js';
 import { showError, friendlyError } from './errors.js';
 import { syncFabVisibility } from './kiosk.js';
+import { visualViewportBox, ensureVisible } from './viewport.js';
 
-// === Minimal native datalist loader ===
-function loadCoursesDatalist() {
+
+function setupCourseAutocomplete() {
+  const input = document.getElementById('course_number');
+  const list  = document.getElementById('course-ac-list');
+  const wrap  = input?.closest('.course-ac');
+  if (!input || !list || !wrap) return;
+
+  const MAX = 50;          
+  let courses = [];
+  let activeIndex = -1;
+
+  
   (async () => {
     try {
       const res = await fetch('./data/courses.csv', { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const text = await res.text();
 
-      // robust-ish parse: handle quoted names/newlines
       const lines = text.split(/\r?\n/);
       const records = [];
       let buf = '', inQuotes = false;
-
       for (const line of lines) {
         const q = (line.match(/"/g) || []).length;
         if (!inQuotes) {
@@ -28,39 +37,200 @@ function loadCoursesDatalist() {
         }
         records.push(buf);
       }
-
-      // drop header if present
       if (records.length && /course|code/i.test(records[0])) records.shift();
 
-      // Build "CODE - Name" options
-      const options = [];
+      const out = [];
       for (const rec of records) {
         const idx = rec.indexOf(',');
         if (idx === -1) continue;
         const code = rec.slice(0, idx).trim();
-        let name = rec.slice(idx + 1)
-          .replace(/\r/g, '')
-          .replace(/CR$/, '')
-          .replace(/^"+|"+$/g, '')
-          .trim();
+        const name = rec.slice(idx + 1)
+          .replace(/\r/g, '').replace(/CR$/, '').replace(/^"+|"+$/g, '').trim();
         if (!code || !name) continue;
-        options.push(`${code} - ${name}`);
+        out.push(`${code} - ${name}`);
       }
-
-      // Support either id used in your HTML
-      const dl = document.getElementById('course-suggestions') || document.getElementById('courses');
-      if (!dl) return;
-
-      dl.innerHTML = '';
-      const frag = document.createDocumentFragment();
-      for (const v of options) {
-        const opt = document.createElement('option');
-        opt.value = v;
-        frag.appendChild(opt);
-      }
-      dl.appendChild(frag);
+      courses = out;
     } catch (err) {
       console.error('courses.csv load failed:', err);
+    }
+  })();
+
+  function filter(q) {
+    q = q.trim().toLowerCase();
+    if (!q) return courses.slice(0, MAX);
+    const starts = [], contains = [];
+    for (const c of courses) {
+      const i = c.toLowerCase().indexOf(q);
+      if (i === 0) starts.push(c);
+      else if (i > 0) contains.push(c);
+    }
+    return starts.concat(contains);
+  }
+
+  const LIST_MIN  = 96;    // never squash below ~2 suggestions
+  const GAP       = 12;
+  let adjusting   = false; // re-entrancy guard: our own scrolling fires events
+
+  // Fit the dropdown into whatever the keyboard has left of the visual viewport,
+  // flipping it above the field when there is more room up there.
+  function positionList() {
+    if (list.hidden) return;
+
+    // Drop our inline cap first so we can read the one CSS defines for the
+    // current mode (16rem supporter / 22rem kiosk) and never exceed it.
+    list.style.maxHeight = '';
+    const cssMax = parseFloat(getComputedStyle(list).maxHeight) || Infinity;
+
+    const vp = visualViewportBox();
+    const r  = input.getBoundingClientRect();
+    const below = vp.bottom - r.bottom - GAP;
+    const above = r.top - vp.top - GAP;
+
+    const flip = below < LIST_MIN && above > below && above >= LIST_MIN;
+    list.classList.toggle('is-above', flip);
+    const room = Math.max(LIST_MIN, flip ? above : below);
+    list.style.maxHeight = `${Math.round(Math.min(room, cssMax))}px`;
+  }
+
+  // Size the panel, scroll field + panel clear of the keyboard, then re-size
+  // against the position we actually ended up at.
+  function reveal() {
+    if (adjusting) return;
+    adjusting = true;
+    try {
+      positionList();
+      ensureVisible(input, { companion: list.hidden ? null : list });
+      positionList();
+    } finally { adjusting = false; }
+  }
+
+  function open()  {
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    reveal();
+  }
+  function close() {
+    list.hidden = true;
+    list.classList.remove('is-above');
+    list.style.maxHeight = '';
+    input.setAttribute('aria-expanded', 'false');
+    input.removeAttribute('aria-activedescendant');
+    activeIndex = -1;
+  }
+  function choose(val) {
+    input.value = val;
+    close();
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function render(items) {
+    list.innerHTML = '';
+    if (!items.length) { close(); return; }
+    const frag = document.createDocumentFragment();
+    items.slice(0, MAX).forEach((val, i) => {
+      const li = document.createElement('li');
+      li.className = 'course-ac-item';
+      li.id = `course-ac-opt-${i}`;
+      li.setAttribute('role', 'option');
+      li.textContent = val;
+      li.addEventListener('pointerdown', (e) => { e.preventDefault(); choose(val); });
+      frag.appendChild(li);
+    });
+    list.appendChild(frag);
+    open();
+  }
+
+  function setActive(i) {
+    const items = list.querySelectorAll('.course-ac-item');
+    if (!items.length) return;
+    activeIndex = (i + items.length) % items.length;
+    items.forEach(el => el.classList.remove('is-active'));
+    const el = items[activeIndex];
+    el.classList.add('is-active');
+    el.scrollIntoView({ block: 'nearest' });
+    input.setAttribute('aria-activedescendant', el.id);
+  }
+
+  input.addEventListener('input', () => render(filter(input.value)));
+  input.addEventListener('focus', () => render(filter(input.value)));
+  input.addEventListener('blur',  () => setTimeout(close, 120));
+
+  input.addEventListener('keydown', (e) => {
+    if (list.hidden) {
+      if (e.key === 'ArrowDown') render(filter(input.value));
+      return;
+    }
+    switch (e.key) {
+      case 'ArrowDown': e.preventDefault(); setActive(activeIndex + 1); break;
+      case 'ArrowUp':   e.preventDefault(); setActive(activeIndex - 1); break;
+      case 'Enter':
+        if (activeIndex >= 0) {
+          e.preventDefault();
+          choose(list.querySelectorAll('.course-ac-item')[activeIndex].textContent);
+        }
+        break;
+      case 'Escape': close(); break;
+    }
+  });
+
+  document.addEventListener('pointerdown', (e) => {
+    if (!wrap.contains(e.target)) close();
+  });
+
+  // The keyboard opening/closing/resizing changes the visual viewport without
+  // any scroll or input event, so re-fit the open dropdown when it does.
+  const onViewportChange = () => { if (!list.hidden) reveal(); };
+  window.visualViewport?.addEventListener('resize', onViewportChange);
+  window.visualViewport?.addEventListener('scroll', onViewportChange);
+  window.addEventListener('scroll', () => {
+    if (!list.hidden && !adjusting) positionList();
+  }, { passive: true });
+}
+
+
+function loadCourseSchedule() {
+  (async () => {
+    try {
+      const res = await fetch('./data/courseSchedule.json', { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const courseSchedule = await res.json();
+
+      let dateTime = new Date();
+      let dayOfTheWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dateTime.getDay()];
+      let time = dateTime.getHours();
+      let timeSlot = (time >= 12) ? "afternoon" : "morning";
+
+      if (dayOfTheWeek === "Saturday" || dayOfTheWeek === "Sunday") {
+        return;
+      }
+
+      let currentCourses = courseSchedule[dayOfTheWeek][timeSlot] ?? [];
+
+      let buttonArray = document.getElementById("course_button_array");
+      for (const course of currentCourses) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = course["abbreviation"];
+        button.name = course["name"];
+        button.courseNumber = course["number"];
+        button.className = 'px-6 py-3 text-lg bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors w-full h-full';
+
+        button.addEventListener('click', () => {
+          document.getElementById('course_number').value = `${button.courseNumber} - ${button.name}`;
+          document.querySelectorAll('#course_button_array button')
+            .forEach(b => b.classList.remove('bg-yellow-700', 'ring-2'));
+          button.classList.add('bg-yellow-700', 'ring-2');
+        });
+
+        buttonArray.appendChild(button);
+      }
+      buttonArray.className = 'grid gap-x-8';
+      buttonArray.style.gridTemplateColumns = `repeat(${currentCourses.length}, 1fr)`;
+      
+
+    } catch (err) {
+      console.error('courseSchedule.json load failed:', err);
     }
   })();
 }
@@ -86,7 +256,8 @@ export async function verifyOneTimeToken() {
 
 export function wireSurveyForm(){
   verifyOneTimeToken();
-  loadCoursesDatalist(); 
+  setupCourseAutocomplete(); 
+  loadCourseSchedule();
   try { if ('scrollRestoration' in history) history.scrollRestoration = 'manual'; } catch {}
 
   const form = document.getElementById("surveyForm");
@@ -224,6 +395,7 @@ export function wireSurveyForm(){
       course_number: (document.getElementById('course_number').value || '').trim() || null,
       building_Number: linkToken ? null : state.selectedBuilding,
       workshop: (form.elements['workshop'] && form.elements['workshop'].value === 'yes'),
+      used_ai: (form.elements['used_ai'] && form.elements['used_ai'].value === 'yes'),
       token: linkToken || null,
     };
 
@@ -243,6 +415,9 @@ export function wireSurveyForm(){
           form.reset();
           form.role.value = 'student';
           toggleRole();
+          const buttonArray = document.getElementById("course_button_array");
+          buttonArray.innerHTML = '';
+          loadCourseSchedule();
           const preferWD = qpWD || (localStorage.getItem(STORAGE.WORKSHOP) === 'true');
           document.getElementById('workshop_yes').checked = !!preferWD;
           document.getElementById('workshop_no').checked  = !preferWD;
