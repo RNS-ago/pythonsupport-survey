@@ -1,10 +1,11 @@
-import { endpoint, STORAGE } from './config.js';
+import { csrfEndpoint, STORAGE } from './config.js';
 
 try {
   const keep = [STORAGE.AUTH, STORAGE.FAILSAFE, STORAGE.OFFLINE].map(k => [k, localStorage.getItem(k)]);
   localStorage.clear();
   for (const [k, v] of keep) if (v !== null) localStorage.setItem(k, v);
 } catch {}
+// [date, csrfToken] from the last successful login.
 export function getSavedKey() {
   try { const saved = localStorage.getItem(STORAGE.AUTH); return saved ? saved.split("|") : [null,null]; }
   catch { return [null,null]; }
@@ -25,10 +26,10 @@ export function isCredentialFault(status) {
 }
 
 /* --------------------------------------------------- offline code override ---
- * The daily code can only be checked against the proxy, so when the proxy is
+ * The password can only be checked against the backend, so when the backend is
  * unreachable there is no way to verify one. In that case we
  * let them in with no code at all; every response goes to the failsafe queue
- * and is uploaded once the proxy answers again and a code has been entered.fl
+ * and is uploaded once the backend answers again and the password has been entered.
  */
 export function isOfflineMode() {
   try { return localStorage.getItem(STORAGE.OFFLINE) === today(); }
@@ -58,16 +59,19 @@ export function wireLogin() {
   const submit = async () => {
     const input = document.getElementById("accessCodeInput").value.trim();
     let reachable = true;
-    const ok = await fetch(endpoint, {
+    // The backend answers with a CSRF token and sets the session cookie it belongs to.
+    const token = await fetch(csrfEndpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": input },
-      body: JSON.stringify({ ping: true })
-    }).then(r => r.ok).catch(() => { reachable = false; return false; });
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: input })
+    }).then(r => r.ok ? r.json().then(j => j.csrfToken) : null)
+      .catch(() => { reachable = false; return null; });
 
     document.getElementById("accessCodeInput").value = "";
 
-    if (ok) {
-      try { localStorage.setItem(STORAGE.AUTH, `${today()}|${input}`); } catch {}
+    if (token) {
+      try { localStorage.setItem(STORAGE.AUTH, `${today()}|${token}`); } catch {}
       setOfflineMode(false);
       hideLogin();
       import('./failsafe.js').then(m => m.retryPending()).catch(() => {});

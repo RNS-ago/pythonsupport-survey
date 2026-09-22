@@ -244,8 +244,8 @@ export async function verifyOneTimeToken() {
   try {
     const resp = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-token': linkToken },
-      body: JSON.stringify({ ping: true })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ping: true, token: linkToken })
     });
     if (!resp.ok) {
       showError('Oops, this link has expired. Please request a new one-time link from your supporter.', resp.status);
@@ -429,7 +429,7 @@ export function wireSurveyForm(){
       username:        !isStudent ? usernameInput.value.trim() : null,
       satisfaction: Number(form.querySelector('input[name="satisfaction"]:checked').value),
       course_number: (document.getElementById('course_number').value || '').trim() || null,
-      building_Number: linkToken ? null : state.selectedBuilding,
+      building_number: linkToken ? null : state.selectedBuilding,
       workshop: (form.elements['workshop'] && form.elements['workshop'].value === 'yes'),
       used_ai: (form.elements['used_ai'] && form.elements['used_ai'].value === 'yes'),
       token: linkToken || null,
@@ -442,9 +442,8 @@ export function wireSurveyForm(){
         return;
       }
 
-      const headers = { "Content-Type": "application/json" };
-      if (linkToken) { headers["x-token"] = linkToken; } else { headers["x-api-key"] = getSavedKey()[1] || ""; }
-      const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(payload) });
+      const headers = { "Content-Type": "application/json", "X-CSRFToken": getSavedKey()[1] || "" };
+      const response = await fetch(endpoint, { method: "POST", credentials: "include", headers, body: JSON.stringify(payload) });
 
       if (response.ok) {
         accept();
@@ -454,7 +453,7 @@ export function wireSurveyForm(){
           const ct = (response.headers.get('Content-Type') || '').toLowerCase();
           if (ct.includes('application/json')) {
             const j = await response.json();
-            raw = j?.message || (typeof j === 'string' ? j : JSON.stringify(j));
+            raw = j?.message || j?.error || (typeof j === 'string' ? j : JSON.stringify(j));
           } else {
             const t = await response.text(); if (t && t.trim().length) raw = t.trim();
           }

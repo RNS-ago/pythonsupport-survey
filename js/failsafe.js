@@ -1,5 +1,5 @@
-// Offline failsafe: a submission the Azure proxy will not take must never be
-// lost. It is queued in localStorage, re-sent automatically once the proxy
+// Offline failsafe: a submission the backend will not take must never be
+// lost. It is queued in localStorage, re-sent automatically once the backend
 // answers again, and can be downloaded as a tab-separated file at any time.
 import { endpoint, linkToken, isQrLink, STORAGE } from './config.js';
 import { getSavedKey, clearSavedKey, isCredentialFault, showLogin } from './auth.js';
@@ -50,7 +50,8 @@ function tsv(rec) {
     ? '' : String(v).replace(/[\t\r\n]+/g, ' ').trim();
   return [
     rec.ts, p.role, p.student_number, p.username, p.satisfaction,
-    p.course_number, p.building_Number,
+    // building_Number: records queued before the move to the Django backend.
+    p.course_number, p.building_number ?? p.building_Number,
     p.workshop ? 'yes' : 'no', p.used_ai ? 'yes' : 'no'
   ].map(cell).join('\t');
 }
@@ -59,7 +60,7 @@ function tsv(rec) {
  * Hand over everything still queued as one tab-separated file. Always a
  * complete snapshot, so downloading twice gives two identical copies rather
  * than two halves — nobody should lose responses to a mistimed click. Records
- * still stay queued and are re-sent as usual once the proxy is back.
+ * still stay queued and are re-sent as usual once the backend is back.
  */
 export function downloadBackupFile() {
   const records = readQueue();
@@ -75,7 +76,7 @@ export function downloadBackupFile() {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 
-  // Records the proxy has refused for good will never go up, and the file is
+  // Records the backend has refused for good will never go up, and the file is
   // now their only home
   writeQueue(records.filter(r => !r.rejected));
   notify();
@@ -98,14 +99,12 @@ export async function retryPending() {
     for (const rec of records) {
       if (rec.rejected || (rec.attempts || 0) >= MAX_ATTEMPTS) continue;
 
-      const headers = { 'Content-Type': 'application/json' };
-      if (rec.payload?.token) headers['x-token'] = rec.payload.token;
-      else headers['x-api-key'] = getSavedKey()[1] || '';
+      const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': getSavedKey()[1] || '' };
 
       let response;
       try {
         response = await fetch(endpoint, {
-          method: 'POST', headers, body: JSON.stringify(rec.payload)
+          method: 'POST', credentials: 'include', headers, body: JSON.stringify(rec.payload)
         });
       } catch { break; }
 
