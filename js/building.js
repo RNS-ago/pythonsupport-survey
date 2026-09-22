@@ -97,8 +97,8 @@ async function generateOneTimeLink() {
   try {
     const resp = await fetch(tokenEndpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': getSavedKey()[1] || '' },
-      body: JSON.stringify({ expiresHours: 24, building_Number: 'Online' })
+      credentials: 'include',
+      headers: { 'X-CSRFToken': getSavedKey()[1] || '' },
     });
     if (!resp.ok) {
       const txt = await resp.text().catch(()=> '');

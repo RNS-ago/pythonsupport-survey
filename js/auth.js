@@ -1,19 +1,49 @@
-import { endpoint, STORAGE } from './config.js';
-// Reset everything on refresh except the saved API key
+import { csrfEndpoint, STORAGE } from './config.js';
+
 try {
-  const keep = localStorage.getItem(STORAGE.AUTH);
+  const keep = [STORAGE.AUTH, STORAGE.FAILSAFE, STORAGE.OFFLINE].map(k => [k, localStorage.getItem(k)]);
   localStorage.clear();
-  if (keep !== null) localStorage.setItem(STORAGE.AUTH, keep);
+  for (const [k, v] of keep) if (v !== null) localStorage.setItem(k, v);
 } catch {}
+// [date, csrfToken] from the last successful login.
 export function getSavedKey() {
   try { const saved = localStorage.getItem(STORAGE.AUTH); return saved ? saved.split("|") : [null,null]; }
   catch { return [null,null]; }
 }
+const today = () => new Date().toISOString().slice(0, 10);
+
 export function isAuthValid() {
   const [date, key] = getSavedKey();
-  const today = new Date().toISOString().slice(0, 10);
-  return date === today && !!key;
+  return date === today() && !!key;
 }
+
+export function clearSavedKey() {
+  try { localStorage.removeItem(STORAGE.AUTH); } catch {}
+}
+
+export function isCredentialFault(status) {
+  return status === 401 || status === 403;
+}
+
+/* --------------------------------------------------- offline code override ---
+ * The password can only be checked against the backend, so when the backend is
+ * unreachable there is no way to verify one. In that case we
+ * let them in with no code at all; every response goes to the failsafe queue
+ * and is uploaded once the backend answers again and the password has been entered.
+ */
+export function isOfflineMode() {
+  try { return localStorage.getItem(STORAGE.OFFLINE) === today(); }
+  catch { return false; }
+}
+
+export function setOfflineMode(on) {
+  try {
+    if (on) localStorage.setItem(STORAGE.OFFLINE, today());
+    else    localStorage.removeItem(STORAGE.OFFLINE);
+  } catch {}
+  document.getElementById('offlineBadge')?.classList.toggle('hidden', !on);
+}
+
 export function showLogin() {
   document.getElementById("loginModal").classList.remove("hidden");
   document.getElementById("mainWrapper").classList.add("pointer-events-none", "opacity-40");
@@ -28,17 +58,26 @@ export function hideLogin() {
 export function wireLogin() {
   const submit = async () => {
     const input = document.getElementById("accessCodeInput").value.trim();
-    const ok = await fetch(endpoint, {
+    let reachable = true;
+    // The backend answers with a CSRF token and sets the session cookie it belongs to.
+    const token = await fetch(csrfEndpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-api-key": input },
-      body: JSON.stringify({ ping: true })
-    }).then(r => r.ok).catch(() => false);
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: input })
+    }).then(r => r.ok ? r.json().then(j => j.csrfToken) : null)
+      .catch(() => { reachable = false; return null; });
 
-    if (ok) {
-      const today = new Date().toISOString().slice(0, 10);
-      try { localStorage.setItem(STORAGE.AUTH, `${today}|${input}`); } catch {}
+    document.getElementById("accessCodeInput").value = "";
+
+    if (token) {
+      try { localStorage.setItem(STORAGE.AUTH, `${today()}|${token}`); } catch {}
+      setOfflineMode(false);
       hideLogin();
-      document.getElementById("accessCodeInput").value = "";
+      import('./failsafe.js').then(m => m.retryPending()).catch(() => {});
+    } else if (!reachable) {
+      setOfflineMode(true);
+      hideLogin();
     } else {
       document.getElementById("loginError").classList.remove("hidden");
     }
