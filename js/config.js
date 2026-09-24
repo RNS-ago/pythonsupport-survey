@@ -4,9 +4,7 @@ const apiBase = "http://localhost:8000";
 export const endpoint       = `${apiBase}/api/responses/`;
 export const csrfEndpoint   = `${apiBase}/api/csrf/`;
 export const tokenEndpoint  = `${apiBase}/api/links/`;
-// Still on the Azure proxy, which does not accept the saved CSRF token:
-// QR links are broken until Django takes them over.
-export const qrSignEndpoint = "https://python-support-proxy.azurewebsites.net/api/qrRedirect";
+export const qrEndpoint     = `${apiBase}/api/qr-codes/`;
 
 export const STORAGE = {
   AUTH: 'surveySupportAuth',

@@ -1,4 +1,4 @@
-import { endpoint, tokenEndpoint, qrSignEndpoint, STORAGE, state, saveSelectedBuilding, qpWD, linkToken } from './config.js';
+import { endpoint, tokenEndpoint, qrEndpoint, STORAGE, state, saveSelectedBuilding, qpWD, linkToken } from './config.js';
 import { getSavedKey } from './auth.js';
 import { showError } from './errors.js';
 import { isKiosk, syncFabVisibility } from './kiosk.js';
@@ -128,6 +128,7 @@ function wireQRModal(){
   const qrResult  = document.getElementById('qrResult');
   const qrBuildingInp = document.getElementById('qrBuilding');
   const qrWD = document.getElementById('qrWorkshopDay');
+  const qrDaysInp = document.getElementById('qrValidDays');
   const inlineErr = document.getElementById('qrInlineError');
 
   function open() {
@@ -150,6 +151,7 @@ function wireQRModal(){
   });
 
   qrBuildingInp?.addEventListener('input', ()=> inlineErr.classList.add('hidden'));
+  qrDaysInp?.addEventListener('input', ()=> inlineErr.classList.add('hidden'));
 
   async function create(){
     if (isKiosk()) return;
@@ -158,11 +160,20 @@ function wireQRModal(){
       inlineErr.textContent='Please enter a valid building between 000 and 990 or use a quick option.';
       inlineErr.classList.remove('hidden'); return;
     }
-    const resp = await fetch(`${qrSignEndpoint}?sign=1&b=${encodeURIComponent(String(num))}&wd=${qrWD.checked ? 1 : 0}`, {
-      method:'GET', headers:{ 'x-api-key': getSavedKey()[1] || '' }
+    const days = Number(qrDaysInp.value);
+    if (!Number.isInteger(days) || days<1 || days>365){
+      inlineErr.textContent='Please enter how many days the QR code stays valid (1-365).';
+      inlineErr.classList.remove('hidden'); return;
+    }
+    const resp = await fetch(qrEndpoint, {
+      method:'POST', credentials:'include',
+      headers:{ 'Content-Type':'application/json', 'X-CSRFToken': getSavedKey()[1] || '' },
+      body: JSON.stringify({ building_number: num, valid_days: days })
     });
-    if (!resp.ok){ const txt = await resp.text().catch(()=> ''); return showError('Could not create static QR. ' + (txt||''), resp.status); }
-    const { url } = await resp.json();
+    if (!resp.ok){ const txt = await resp.text().catch(()=> ''); return showError('Could not create QR. ' + (txt||''), resp.status); }
+    const { token } = await resp.json();
+    // Same shape as a one-time link; the backend knows the building and whether the token is reusable.
+    const url = `${location.origin}${location.pathname}?t=${encodeURIComponent(token)}${qrWD.checked ? '&wd=1' : ''}`;
     qrLinkInp.value = url;
     if (window.QRCode?.toCanvas){
       const ctx = qrCanvas.getContext('2d'); ctx.clearRect(0,0,qrCanvas.width,qrCanvas.height);
