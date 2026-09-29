@@ -1,6 +1,6 @@
 // Endpoints (change here only)
-// Django backend; point at the deployed hostname before release.
-const apiBase = "http://localhost:8000";
+// Django backend serves this frontend, so API calls go to the same origin.
+const apiBase = "";
 export const endpoint       = `${apiBase}/api/responses/`;
 export const csrfEndpoint   = `${apiBase}/api/csrf/`;
 export const tokenEndpoint  = `${apiBase}/api/links/`;
