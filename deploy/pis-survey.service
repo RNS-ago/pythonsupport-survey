@@ -1,0 +1,16 @@
+# Installed to /etc/systemd/system/ by setup.sh and update.sh.
+[Unit]
+Description=DTU Python Support survey backend (gunicorn)
+After=network.target
+
+[Service]
+User=pis
+Group=pis
+WorkingDirectory=/srv/pythonsupport-survey/backend/pythonsupport
+EnvironmentFile=/srv/pythonsupport-survey/backend/.env
+# Only nginx talks to gunicorn, so it listens on localhost only.
+ExecStart=/srv/pythonsupport-survey/backend/.venv/bin/gunicorn pythonsupport.wsgi --bind 127.0.0.1:8000 --workers 3
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

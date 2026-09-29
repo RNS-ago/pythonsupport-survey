@@ -12,7 +12,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ["SECRET_KEY"]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Off unless DEBUG=1 is in the environment, so a server can't end up in debug mode by accident.
+DEBUG = os.environ.get('DEBUG') == '1'
+
+if not DEBUG:
+    # Production runs behind nginx over HTTPS (see deploy/). nginx always overwrites
+    # X-Forwarded-Proto, and gunicorn only listens on 127.0.0.1, so the header can be trusted.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 ALLOWED_HOSTS = os.environ['ALLOWED_HOSTS'].split()
 
@@ -74,7 +82,9 @@ WSGI_APPLICATION = 'pythonsupport.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        # The server keeps it outside the checkout (deploy/setup.sh sets DATABASE_PATH);
+        # locally it defaults to a file next to manage.py.
+        'NAME': os.environ.get('DATABASE_PATH', BASE_DIR / 'db.sqlite3'),
     }
 }
 
@@ -114,5 +124,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+# collectstatic copies the admin's CSS/JS here; nginx serves it at /static/.
+STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

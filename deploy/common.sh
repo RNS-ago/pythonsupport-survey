@@ -1,0 +1,47 @@
+# Shared by setup.sh and update.sh; not meant to be run on its own.
+# The paths here must match pis-survey.service, nginx.conf and backup.sh.
+#
+# Ownership (see "Permissions" in the root README):
+#   root owns the checkout, including backend/.venv and backend/staticfiles, and runs git and uv;
+#   pis runs the app and can only write the database folder and the backups.
+set -euo pipefail
+
+APP_DIR=/srv/pythonsupport-survey
+APP_USER=pis
+SERVICE=pis-survey
+
+[[ $EUID -eq 0 ]] || { echo "Run this script as root (sudo)." >&2; exit 1; }
+[[ "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" == "$APP_DIR" ]] \
+  || { echo "The repository must be cloned to $APP_DIR." >&2; exit 1; }
+cd "$APP_DIR"
+
+# uv would install Python under /root, which pis can't enter; put it somewhere pis can run it.
+export UV_PYTHON_INSTALL_DIR=/opt/uv-python
+
+# Install dependencies into backend/.venv as root: pis can run them but not change them.
+sync_deps() {
+  uv sync --directory backend --locked --no-dev --compile-bytecode
+  # pis can't write __pycache__ into the root-owned checkout, so compile the app's code now.
+  backend/.venv/bin/python -m compileall -q backend/pythonsupport
+}
+
+# manage.py with the production settings from backend/.env, as the given user:
+# pis for anything touching the database, root for collectstatic.
+manage_as() {
+  local user=$1; shift
+  sudo -u "$user" -H uv run --no-sync --directory "$APP_DIR/backend/pythonsupport" \
+    --env-file "$APP_DIR/backend/.env" python manage.py "$@"
+}
+
+install_service() {
+  install -m 644 deploy/$SERVICE.service /etc/systemd/system/$SERVICE.service
+  systemctl daemon-reload
+}
+
+# Fail loudly if gunicorn didn't come up, instead of leaving a dead site.
+check_service() {
+  sleep 2
+  systemctl is-active --quiet $SERVICE || { journalctl -u $SERVICE -n 30 --no-pager; exit 1; }
+}
+
+step() { if [ -t 1 ]; then printf '\n\033[1;36m=====>\033[0m \033[1;35m%s\033[0m\n' "$*"; else printf '\n=====> %s\n' "$*"; fi; }
