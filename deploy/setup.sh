@@ -8,7 +8,7 @@
 #
 #   sudo /srv/pythonsupport-survey/deploy/setup.sh --test [host]    # host defaults to localhost
 #
-# It skips certbot and serves plain HTTP with DEBUG=1, because without HTTPS the
+# It serves plain HTTP without a certificate, with DEBUG=1, because without HTTPS the
 # production session cookie (HTTPS-only) would make logging in impossible.
 #
 # Safe to run again after a failure: finished steps are skipped or repeated harmlessly.
@@ -17,10 +17,12 @@ if [[ ${1:-} == --test ]]; then
   TEST_MODE=1
   DOMAIN=${2:-localhost}
   SCHEME=http
+  SITE_ADDRESS=http://$DOMAIN
 else
   TEST_MODE=
   DOMAIN=${1:?$USAGE}
   SCHEME=https
+  SITE_ADDRESS=$DOMAIN
 fi
 source "$(dirname "$0")/common.sh"
 
@@ -32,7 +34,7 @@ test_mode_warning() {
 
 step "System packages"
 apt-get update
-apt-get install -y git sudo curl openssl sqlite3 cron nginx certbot python3-certbot-nginx
+apt-get install -y git sudo curl openssl sqlite3 cron caddy
 
 step "uv"
 command -v uv >/dev/null \
@@ -87,25 +89,15 @@ systemctl enable --now $SERVICE
 systemctl restart $SERVICE
 check_service
 
-step "nginx"
-SITE=/etc/nginx/sites-available/pis-survey
-# Never overwrite: certbot has added the HTTPS config to the installed copy.
-[[ -f $SITE ]] || sed "s/__DOMAIN__/$DOMAIN/" deploy/nginx.conf > "$SITE"
-ln -sf "$SITE" /etc/nginx/sites-enabled/pis-survey
-rm -f /etc/nginx/sites-enabled/default
-nginx -t
-# Start nginx if apt didn't (e.g. in Docker), reload it if it is already running.
-systemctl enable nginx
-systemctl reload-or-restart nginx
-
-step "HTTPS certificate"
-if [[ -n $TEST_MODE ]]; then
-  echo "Skipped in test mode."
-else
-  # Needs DNS for $DOMAIN pointing at this server and ports 80/443 open.
-  certbot --nginx -d "$DOMAIN" --redirect \
-    || echo "certbot failed. Fix DNS/firewall, then run: sudo certbot --nginx -d $DOMAIN --redirect"
-fi
+step "Caddy (web server and HTTPS certificate)"
+# Replaces the package's default site. The site itself is deploy/Caddyfile in the checkout.
+echo "import $APP_DIR/deploy/Caddyfile $SITE_ADDRESS" > /etc/caddy/Caddyfile
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+# Start Caddy if apt didn't (e.g. in Docker), reload it if it is already running.
+systemctl enable caddy
+systemctl reload-or-restart caddy
+# Without test mode, Caddy now fetches the certificate in the background. That needs DNS for
+# $DOMAIN pointing at this server and ports 80/443 open; see: journalctl -u caddy
 
 step "Admin account for $SCHEME://$DOMAIN/admin/"
 manage_as "$APP_USER" createsuperuser

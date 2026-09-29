@@ -20,7 +20,7 @@ More detail on each part: [`frontend/readme.md`](frontend/readme.md) and
 ## How the frontend and backend work together
 
 ```
-browser ──▶ nginx ──┬─ /api/, /admin/  ──▶ gunicorn ──▶ Django ──▶ SQLite (DATABASE_PATH)
+browser ──▶ Caddy ──┬─ /api/, /admin/  ──▶ gunicorn ──▶ Django ──▶ SQLite (DATABASE_PATH)
                     ├─ /static/        ──▶ backend/staticfiles/ (admin CSS/JS)
                     └─ everything else ──▶ frontend/
 ```
@@ -115,12 +115,12 @@ uv run --env-file ../.env python manage.py test
 
 The production setup is one Debian or Ubuntu server running:
 
-- **nginx**: serves `frontend/` and the admin's static files, terminates HTTPS, and
-  forwards `/api/` and `/admin/` to gunicorn.
+- **Caddy**: serves `frontend/` and the admin's static files, terminates HTTPS, and
+  forwards `/api/` and `/admin/` to gunicorn. It gets and renews the Let's Encrypt
+  certificate by itself.
 - **gunicorn**: runs Django as the systemd service `pis-survey`, as the system user
   `pis`, listening on `127.0.0.1:8000` only.
 - **SQLite**: `/var/lib/pis-survey/db.sqlite3`, outside the checkout, backed up daily.
-- **certbot**: gets and renews the Let's Encrypt certificate.
 
 The code lives in one checkout at `/srv/pythonsupport-survey`, and the scripts and config
 files expect that path. The database is kept apart from it in `/var/lib/pis-survey/`, so
@@ -133,7 +133,7 @@ re-cloning or cleaning the checkout can never delete the data.
 | `backup.sh` | Back up the database (daily from cron, and before every update) |
 | `common.sh` | Paths and helpers shared by the scripts |
 | `pis-survey.service` | systemd unit for gunicorn |
-| `nginx.conf` | nginx site |
+| `Caddyfile` | Caddy site, read straight from the checkout |
 
 ### Before you start
 
@@ -165,7 +165,7 @@ re-cloning or cleaning the checkout can never delete the data.
 
    It will:
 
-   1. Install git, nginx, sqlite3, certbot and uv.
+   1. Install git, Caddy, sqlite3 and uv.
    2. Create the `pis` system user, and make root the owner of the checkout.
    3. Create `/var/lib/pis-survey/` for the database, readable only by `pis`.
    4. Ask for the supporter password and write `backend/.env` with a random
@@ -174,21 +174,20 @@ re-cloning or cleaning the checkout can never delete the data.
    5. Install the Python dependencies, create the database, and collect the admin's
       static files.
    6. Install the daily backup cron job.
-   7. Start the `pis-survey` service and configure nginx.
-   8. Run certbot to get the HTTPS certificate. It asks for an email address and for you
-      to accept the terms.
-   9. Ask you to create the first admin account for `/admin/`.
+   7. Start the `pis-survey` service and point Caddy at `deploy/Caddyfile`. Caddy then
+      fetches the HTTPS certificate in the background.
+   8. Ask you to create the first admin account for `/admin/`.
 
    If a step fails, fix the cause and run the script again. It keeps the existing
-   `.env` and nginx site, so rerunning it is safe.
+   `.env`, so rerunning it is safe.
 
 3. Open `https://survey.example.dk`, log in with the supporter password, and submit a
    test response and a test problem log. Check that both appear under
    `https://survey.example.dk/admin/`.
 
 The site only works over HTTPS: in production the session cookie is HTTPS-only, so
-logging in over plain HTTP fails. If certbot failed, fix DNS or the firewall and run
-`sudo certbot --nginx -d survey.example.dk --redirect`.
+logging in over plain HTTP fails. If the certificate doesn't arrive, check
+`sudo journalctl -u caddy`, fix DNS or the firewall, and run `sudo systemctl restart caddy`.
 
 ### Trying the setup locally (test mode)
 
@@ -202,7 +201,7 @@ sudo /srv/pythonsupport-survey/deploy/setup.sh --test my-vm.lan  # or another ho
 
 Test mode differs from a real setup in two ways:
 
-- It skips certbot, so the site is served over plain HTTP.
+- Caddy serves the site over plain HTTP and doesn't request a certificate.
 - It writes `DEBUG=1` to `backend/.env`. Without HTTPS, the production session cookie
   (HTTPS-only) would never be sent back, and logging in would fail.
 
@@ -241,17 +240,21 @@ sudo /srv/pythonsupport-survey/deploy/update.sh
 
 To deploy another branch, for example for testing: `sudo /srv/pythonsupport-survey/deploy/update.sh my-branch`.
 
-The script pulls the code, backs up the database, installs dependencies, applies
-migrations, collects static files and restarts gunicorn. If gunicorn does not come back
-up, it prints the service log and exits with an error.
+The script pulls the code, installs dependencies and collects static files. It then stops
+gunicorn, backs up the database, applies migrations, starts gunicorn again and reloads
+Caddy. The site is down for the few seconds of the migrations; supporters' devices queue
+survey responses meanwhile.
+
+After starting gunicorn, the script checks that Django answers. If any step after the pull
+fails, it rolls back: it restores the database from the backup it just made (if migrations
+had started), checks out the previous commit and starts that version again. The checkout is
+then on a detached commit; the next `update.sh` returns to the branch.
 
 Frontend changes are live as soon as the code is pulled. Tablets in kiosk mode may keep
 old files cached until they reload the page.
 
-`update.sh` never touches the nginx site, because certbot has edited the installed copy.
-If you change `deploy/nginx.conf`, apply the same change to
-`/etc/nginx/sites-available/pis-survey` by hand, then run
-`sudo nginx -t && sudo systemctl reload nginx`.
+Changes to `deploy/Caddyfile` go live with the update, because Caddy reads it from the
+checkout. `/etc/caddy/Caddyfile` only holds one line that imports it with the domain.
 
 ### Changing settings
 
@@ -282,7 +285,7 @@ Django runs as the `pis` user, and `pis` can change only the data, never the pro
 
 If an attacker ever finds a bug that lets them run code inside Django, that code runs as
 `pis`. It can reach the data, since the app needs that to work, but it cannot plant a
-backdoor in the backend or change the JavaScript that nginx sends to supporters. Fixing the
+backdoor in the backend or change the JavaScript that Caddy sends to supporters. Fixing the
 bug and restarting the service removes them.
 
 This is why the scripts run `git`, `uv sync` and `collectstatic` as root, and only the
@@ -310,6 +313,5 @@ sudo systemctl start pis-survey
 ```sh
 sudo systemctl status pis-survey         # is gunicorn running?
 sudo journalctl -u pis-survey -f         # backend log
-sudo tail -f /var/log/nginx/error.log    # nginx log
-sudo certbot renew --dry-run             # check that certificate renewal works
+sudo journalctl -u caddy -f              # web server and certificate log
 ```

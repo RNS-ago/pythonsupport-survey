@@ -16,7 +16,7 @@ urlpatterns = [
     path('api/links/', views.issue_link),
     path('api/qr-codes/', views.issue_qr_code),
     # Frontend last, so the API and admin routes win.
-    # ponytail: django's serve() is slow; put nginx/WhiteNoise in front if traffic grows.
+    # ponytail: django's serve() is slow; put Caddy/WhiteNoise in front if traffic grows.
     path('', serve, {'document_root': FRONTEND_DIR, 'path': 'index.html'}),
     re_path(r'^(?P<path>.*)$', serve, {'document_root': FRONTEND_DIR}),
 ]
