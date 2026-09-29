@@ -5,6 +5,24 @@
 .env.test.local
 .env.production.local
 
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Database files
+*.sqlite3
+
+# Backend data exports (contain student numbers).
+# Scoped to backend/ so frontend/data/courses.csv stays tracked.
+backend/**/*.csv
+
 # System files
 .DS_Store
 .DS_Store?
@@ -34,7 +52,6 @@ tmp/
 temp/
 .tmp/
 .cache/
-
 
 # Backup files
 *.bak
