@@ -208,7 +208,8 @@ function loadCourseSchedule() {
         return;
       }
 
-      let currentCourses = courseSchedule[dayOfTheWeek][timeSlot] ?? [];
+      // At most 6 buttons, laid out 3 per row.
+      let currentCourses = (courseSchedule[dayOfTheWeek][timeSlot] ?? []).slice(0, 6);
 
       let buttonArray = document.getElementById("course_button_array");
       for (const course of currentCourses) {
@@ -228,8 +229,8 @@ function loadCourseSchedule() {
 
         buttonArray.appendChild(button);
       }
-      buttonArray.className = 'grid gap-x-8';
-      buttonArray.style.gridTemplateColumns = `repeat(${currentCourses.length}, 1fr)`;
+      buttonArray.className = 'grid gap-x-8 gap-y-4';
+      buttonArray.style.gridTemplateColumns = `repeat(${Math.min(currentCourses.length, 3)}, 1fr)`;
       
 
     } catch (err) {
