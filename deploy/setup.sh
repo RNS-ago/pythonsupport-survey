@@ -94,7 +94,7 @@ check_service
 
 step "Caddy (web server and HTTPS certificate)"
 # Replaces the package's default site. The site itself is deploy/Caddyfile in the checkout.
-echo "import $APP_DIR/deploy/Caddyfile $SITE_ADDRESS" > /etc/caddy/Caddyfile
+printf '%s {\n\timport %s\n}\n' "$SITE_ADDRESS" "$APP_DIR/deploy/Caddyfile" > /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 # Start Caddy if apt didn't (e.g. in Docker), reload it if it is already running.
 systemctl enable caddy

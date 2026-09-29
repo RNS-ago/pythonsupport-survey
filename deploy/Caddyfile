@@ -1,28 +1,28 @@
-# The site, imported by /etc/caddy/Caddyfile, which setup.sh writes once as:
-#   import /srv/pythonsupport-survey/deploy/Caddyfile <site address>
+# The site's directives, imported by /etc/caddy/Caddyfile, which setup.sh writes as:
+#   <site address> {
+#   	import /srv/pythonsupport-survey/deploy/Caddyfile
+#   }
 # The address is the domain (Caddy then gets and renews the HTTPS certificate itself),
 # or http://<host> in test mode (plain HTTP, no certificate).
 # Caddy reads this file straight from the checkout, so update.sh only has to reload it.
-{args[0]} {
-	encode gzip
+encode gzip
 
-	# Django (gunicorn). Caddy sets X-Forwarded-Proto itself and ignores the client's.
-	handle /api/* {
-		reverse_proxy 127.0.0.1:8000
-	}
-	handle /admin/* {
-		reverse_proxy 127.0.0.1:8000
-	}
+# Django (gunicorn). Caddy sets X-Forwarded-Proto itself and ignores the client's.
+handle /api/* {
+	reverse_proxy 127.0.0.1:8000
+}
+handle /admin/* {
+	reverse_proxy 127.0.0.1:8000
+}
 
-	# The admin's CSS/JS, copied here by `manage.py collectstatic`
-	handle_path /static/* {
-		root * /srv/pythonsupport-survey/backend/staticfiles
-		file_server
-	}
+# The admin's CSS/JS, copied here by `manage.py collectstatic`
+handle_path /static/* {
+	root * /srv/pythonsupport-survey/backend/staticfiles
+	file_server
+}
 
-	# Everything else is a frontend file
-	handle {
-		root * /srv/pythonsupport-survey/frontend
-		file_server
-	}
+# Everything else is a frontend file
+handle {
+	root * /srv/pythonsupport-survey/frontend
+	file_server
 }

@@ -254,7 +254,7 @@ Frontend changes are live as soon as the code is pulled. Tablets in kiosk mode m
 old files cached until they reload the page.
 
 Changes to `deploy/Caddyfile` go live with the update, because Caddy reads it from the
-checkout. `/etc/caddy/Caddyfile` only holds one line that imports it with the domain.
+checkout. `/etc/caddy/Caddyfile` only holds the domain and an `import` of that file.
 
 ### Changing settings
 
