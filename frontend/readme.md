@@ -1,6 +1,6 @@
 # DTU Python Support Survey
 
-A web-based student satisfaction survey application for DTU Python Support services.
+A web-based student satisfaction survey and internal problem log for DTU Python Support services.
 
 **Example:** https://www.student.dtu.dk/~s214960/python-support-survey/
 
@@ -10,14 +10,16 @@ A web-based student satisfaction survey application for DTU Python Support servi
 ├── index.html              # Main survey application
 ├── assets/                 # Satisfaction rating images (face1-5.png)
 ├── css/                    # Stylesheets (main, sidebar, modal, survey, compact, kiosk)
-├── js/                     # JavaScript modules (app, auth, building, config, errors, kiosk, links, qr, survey, bundle)
-├── partials/               # HTML templates (analytics, building-selection, modals, sidebar, survey-form)
+├── js/                     # JavaScript modules (app, auth, building, config, errors, failsafe, kiosk, problem-log, survey, viewport)
+├── partials/               # HTML templates (analytics, building-selection, modals, mode-selection, problem-log, sidebar, survey-form)
 ├── data/courses.csv        # Course data for autocomplete
 └── readme.md               # Documentation
 ```
 
 ## Features
 
+- Form selection screen for supporters (customer satisfaction or internal logging)
+- Internal problem log for supporters to record common issues after helping a student
 - Building selection interface
 - One-time link generation for our Discord help
 - QR code generation for static URLs
@@ -31,19 +33,25 @@ A web-based student satisfaction survey application for DTU Python Support servi
 
 Open `index.html` in a web browser. The application includes:
 
-1. Building Selection: Choose from predefined buildings or enter custom building number
-2. Survey Form: Fill out satisfaction survey with student number/DTU credentials
-3. Analytics: View survey statistics (requires authentication)
+1. Form Selection: After logging in, supporters choose between Customer Satisfaction and Internal Logging. The sidebar's "Choose form" link returns here.
+2. Building Selection: Choose from predefined buildings or enter custom building number (Customer Satisfaction only)
+3. Survey Form: Fill out satisfaction survey with student number/DTU credentials
+4. Internal Logging: Tick common problems (or describe another one) and submit them to the backend
+5. Analytics: View survey statistics (requires authentication)
 
 ## Authentication
 
 The application uses password-based authentication for supporters, with automatic bypass for student access:
 
-- Regular Access (`/index.html`): Requires daily access code authentication
+- Regular Access (`/index.html`): Requires daily access code authentication, then opens the form selection screen
 - One-time Links (`?t=TOKEN` or `?token=TOKEN`): Bypass authentication, direct access to survey
 - QR Code Access (`?b=BUILDING`): Bypass authentication, direct access to survey
 
 Both one-time links and QR code access automatically enable compact mode for an optimized experience.
+
+Students (one-time links, QR codes and kiosk mode) always go straight to the survey and never see the form selection screen or the internal problem log.
+
+The internal problem log uses the same supporter login as the survey and posts to `/api/problem-logs/` on the Django backend. It has no offline queue: if the backend is unreachable or the session has expired, the form keeps its values and asks the supporter to log in again.
 
 ## Architecture
 
