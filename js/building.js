@@ -10,61 +10,47 @@ const openBtn  = () => document.getElementById('openSidebar');
 export function openSidebar(){ if (!isKiosk()) { sidebar().classList.remove('-translate-x-full'); overlay().classList.remove('hidden'); document.body.classList.add('overflow-hidden'); }}
 export function closeSidebar(){ sidebar().classList.add('-translate-x-full'); overlay().classList.add('hidden'); document.body.classList.remove('overflow-hidden'); }
 
-export function showBuildingSelection(){
-  if (isKiosk()) return;
-
-  // show containers
-  document.getElementById('buildingSelectionContainer').classList.remove('hidden');
-  document.getElementById('surveyContainer').classList.add('hidden');
-  document.getElementById('analyticsContainer').classList.add('hidden');
-
-  // also toggle inner pages (partials)
-  document.getElementById('buildingSelectionPage')?.classList.remove('hidden');
-  document.getElementById('surveyPage')?.classList.add('hidden');
-  document.getElementById('analyticsPage')?.classList.add('hidden');
-
+// Each page has an outer container (index.html) and an inner page (partial); show one, hide the rest.
+const PAGES = ['modeSelection', 'buildingSelection', 'survey', 'analytics', 'problemLog'];
+function showPage(name){
+  for (const p of PAGES) {
+    document.getElementById(`${p}Container`).classList.toggle('hidden', p !== name);
+    document.getElementById(`${p}Page`)?.classList.toggle('hidden', p !== name);
+  }
   syncBackSelectorVisibility();
   syncFabVisibility();
 }
 
-export function showSurveyForm(){
-  // show containers
-  document.getElementById('buildingSelectionContainer').classList.add('hidden');
-  document.getElementById('surveyContainer').classList.remove('hidden');
-  document.getElementById('analyticsContainer').classList.add('hidden');
+export function showModeSelection(){
+  if (isKiosk()) return;
+  showPage('modeSelection');
+}
 
-  // also toggle inner pages (partials)
-  document.getElementById('buildingSelectionPage')?.classList.add('hidden');
-  document.getElementById('surveyPage')?.classList.remove('hidden');
-  document.getElementById('analyticsPage')?.classList.add('hidden');
+export function showProblemLog(){
+  if (isKiosk()) return;
+  showPage('problemLog');
+}
+
+export function showBuildingSelection(){
+  if (isKiosk()) return;
+  showPage('buildingSelection');
+}
+
+export function showSurveyForm(){
+  showPage('survey');
 
   // keep the workshop preset logic
   const preferWD = (localStorage.getItem('workshopDay') === 'true');
   const yes = document.getElementById('workshop_yes');
   const no  = document.getElementById('workshop_no');
   if (yes && no) { yes.checked = !!preferWD; no.checked = !preferWD; }
-
-  syncBackSelectorVisibility();
-  syncFabVisibility();
 }
 
 export function switchToAnalytics(e){
   if (e) e.preventDefault();
   if (isKiosk() || (new URLSearchParams(location.search).get('t') || new URLSearchParams(location.search).get('token'))) return;
-
-  // show containers
-  document.getElementById('buildingSelectionContainer').classList.add('hidden');
-  document.getElementById('surveyContainer').classList.add('hidden');
-  document.getElementById('analyticsContainer').classList.remove('hidden');
-
-  // also toggle inner pages (partials)
-  document.getElementById('buildingSelectionPage')?.classList.add('hidden');
-  document.getElementById('surveyPage')?.classList.add('hidden');
-  document.getElementById('analyticsPage')?.classList.remove('hidden');
-
+  showPage('analytics');
   closeSidebar();
-  syncBackSelectorVisibility();
-  syncFabVisibility();
 }
 
 export function switchToSurvey(e){
@@ -227,6 +213,9 @@ export function wireBuildingPage(){
   // tabs
   document.getElementById('surveyTab')?.addEventListener('click', switchToSurvey);
   document.getElementById('analyticsTab')?.addEventListener('click', switchToAnalytics);
+  document.getElementById('modeSurvey')?.addEventListener('click', switchToSurvey);
+  document.getElementById('modeProblemLog')?.addEventListener('click', showProblemLog);
+  document.getElementById('modeTab')?.addEventListener('click', e => { e.preventDefault(); showModeSelection(); closeSidebar(); });
   document.getElementById('backSelectorTab')?.addEventListener('click', e => { e.preventDefault(); showBuildingSelection(); closeSidebar(); });
   document.getElementById('resetTab')?.addEventListener('click', e => { e.preventDefault(); location.href = location.pathname + '?reset=1'; });
 

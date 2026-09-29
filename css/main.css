@@ -2,7 +2,9 @@
 body.student-flow header { display: none !important; }
 body.student-flow #surveyPage { padding: 0 !important; }
 body.student-flow #buildingSelectionPage,
-body.student-flow #analyticsPage { display: none !important; }
+body.student-flow #analyticsPage,
+body.student-flow #modeSelectionPage,
+body.student-flow #problemLogPage { display: none !important; }
 
 /* Default student token/QR: full-height, no card */
 body.student-flow #surveyCard{

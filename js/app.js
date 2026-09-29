@@ -1,9 +1,10 @@
-import { STORAGE, linkToken, hasOneTimeToken, isQrLink, state } from './config.js';
+import { STORAGE, linkToken, hasOneTimeToken, isQrLink } from './config.js';
 import { isAuthValid, showLogin, hideLogin, wireLogin, isOfflineMode, setOfflineMode } from './auth.js';
 import { wireKiosk, applyKiosk, isKiosk, syncFabVisibility } from './kiosk.js';
-import { wireBuildingPage, showBuildingSelection, showSurveyForm, applySidebarVisibility } from './building.js';
+import { wireBuildingPage, showBuildingSelection, showSurveyForm, showModeSelection, applySidebarVisibility } from './building.js';
 import { wireSurveyForm } from './survey.js';
 import { wireFailsafe } from './failsafe.js';
+import { wireProblemLog } from './problem-log.js';
 
 async function loadPartial(selector, url){
   const host = document.querySelector(selector);
@@ -13,9 +14,11 @@ async function loadPartial(selector, url){
 
 // Load all partials first
 await loadPartial('#sidebarContainer',   './partials/sidebar.html');
+await loadPartial('#modeSelectionContainer', './partials/mode-selection.html');
 await loadPartial('#buildingSelectionContainer', './partials/building-selection.html');
 await loadPartial('#surveyContainer',    './partials/survey-form.html');
 await loadPartial('#analyticsContainer', './partials/analytics.html');
+await loadPartial('#problemLogContainer', './partials/problem-log.html');
 await loadPartial('#modalsContainer',    './partials/modals.html');
 
 // Wire features that depend on DOM
@@ -24,6 +27,7 @@ wireKiosk();
 wireBuildingPage();
 wireSurveyForm();
 wireFailsafe();
+wireProblemLog();
 
 // Student-flow layout rule: hide header/pages for students (token/QR or kiosk)
 function applyStudentFlowLayout() {
@@ -38,10 +42,9 @@ else if (isAuthValid())          { hideLogin(); }
 else if (isOfflineMode())        { setOfflineMode(true); hideLogin(); }
 else                             { showLogin(); }
 
-// Initial page
-if (hasOneTimeToken)      showSurveyForm();
-else if (state.selectedBuilding === null && !isQrLink) showBuildingSelection();
-else                         showSurveyForm();
+// Initial page: students and tablets go straight to the survey; supporters choose a form
+if (hasOneTimeToken || isQrLink || isKiosk()) showSurveyForm();
+else                                          showModeSelection();
 
 // Ensure sidebar matches mode, and FABs too
 applySidebarVisibility();

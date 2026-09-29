@@ -5,6 +5,7 @@ export const endpoint       = `${apiBase}/api/responses/`;
 export const csrfEndpoint   = `${apiBase}/api/csrf/`;
 export const tokenEndpoint  = `${apiBase}/api/links/`;
 export const qrEndpoint     = `${apiBase}/api/qr-codes/`;
+export const problemLogEndpoint = `${apiBase}/api/problem-logs/`;
 
 export const STORAGE = {
   AUTH: 'surveySupportAuth',
