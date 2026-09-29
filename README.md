@@ -190,6 +190,34 @@ The site only works over HTTPS: in production the session cookie is HTTPS-only, 
 logging in over plain HTTP fails. If certbot failed, fix DNS or the firewall and run
 `sudo certbot --nginx -d survey.example.dk --redirect`.
 
+### Trying the setup locally (test mode)
+
+To try `setup.sh` without a domain, for example in a Debian or Ubuntu container or VM,
+clone the repository to `/srv/pythonsupport-survey` as above and run:
+
+```sh
+sudo /srv/pythonsupport-survey/deploy/setup.sh --test            # serves http://localhost
+sudo /srv/pythonsupport-survey/deploy/setup.sh --test my-vm.lan  # or another host name
+```
+
+Test mode differs from a real setup in two ways:
+
+- It skips certbot, so the site is served over plain HTTP.
+- It writes `DEBUG=1` to `backend/.env`. Without HTTPS, the production session cookie
+  (HTTPS-only) would never be sent back, and logging in would fail.
+
+The script prints a warning at the start and the end. **Never use test mode in
+production**: debug mode shows detailed error pages, and without HTTPS the supporter
+password travels unencrypted.
+
+Test mode only writes `DEBUG=1` when it creates `backend/.env`. If a `.env` already exists
+from an earlier run without `--test`, add `DEBUG=1` to it by hand, then run
+`sudo systemctl restart pis-survey`.
+
+In a container, run it with systemd as the init process (the script manages services with
+`systemctl`), and publish port 80, for example `-p 8080:80`. The site is then at
+<http://localhost:8080>.
+
 ### Importing the old data
 
 To load the old SharePoint export once, copy the CSV to the server outside the
