@@ -27,8 +27,11 @@ fi
 source "$(dirname "$0")/common.sh"
 
 test_mode_warning() {
-  printf '\n!!! TEST MODE: plain HTTP, DEBUG=1 and no HTTPS certificate.\n'
-  printf '!!! Do not use this setup in production. Run setup.sh <domain> on the real server.\n'
+  # Bold red on a terminal, like step()'s colours; plain text when piped to a log.
+  local on='' off=''
+  [ -t 1 ] && { on='\033[1;31m'; off='\033[0m'; }
+  printf "\n${on}!!! TEST MODE: plain HTTP, DEBUG=1 and no HTTPS certificate.${off}\n"
+  printf "${on}!!! Do not use this setup in production. Run setup.sh <domain> on the real server.${off}\n"
 }
 [[ -z $TEST_MODE ]] || test_mode_warning
 
