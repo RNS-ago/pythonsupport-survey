@@ -77,11 +77,13 @@ sudo -u "$APP_USER" psql -v ON_ERROR_STOP=1 -qd pis_survey -c "CREATE SCHEMA IF 
 step "Notebook access for ${SUDO_USER:-nobody}"
 # The person running this script (through sudo) gets a database login with the same rights as
 # the app, for the notebooks (see "Notebooks" in the root README). Every session switches to
-# pis, so tables the notebooks create belong to pis and are covered by backups and restores.
+# pis, so tables the notebooks create belong to pis and are covered by backups and restores,
+# and tables created without a schema go to analysis, not between Django's tables in public.
 if [[ -n ${SUDO_USER:-} && $SUDO_USER != root ]]; then
   [[ $(psql_admin "SELECT 1 FROM pg_roles WHERE rolname = '$SUDO_USER'") == 1 ]] \
     || psql_admin "CREATE ROLE \"$SUDO_USER\" LOGIN IN ROLE $APP_USER"
   psql_admin "ALTER ROLE \"$SUDO_USER\" SET role = $APP_USER"
+  psql_admin "ALTER ROLE \"$SUDO_USER\" SET search_path = analysis, public"
 else
   echo "Skipped: run setup.sh with sudo from your own account to get notebook access."
 fi

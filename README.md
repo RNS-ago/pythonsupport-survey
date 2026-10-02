@@ -459,12 +459,15 @@ the server, and PostgreSQL sees you as your own account on the server.
 `alice` one:
 
 ```sh
-sudo -u postgres psql -c 'CREATE ROLE "alice" LOGIN IN ROLE pis' -c 'ALTER ROLE "alice" SET role = pis'
+sudo -u postgres psql -c 'CREATE ROLE "alice" LOGIN IN ROLE pis' -c 'ALTER ROLE "alice" SET role = pis' \
+  -c 'ALTER ROLE "alice" SET search_path = analysis, public'
 ```
 
 The login has the same rights as the app: it can read and change everything, including
 student numbers. Every session switches to `pis`, so tables the notebooks create belong to
-`pis` and are covered by backups and restores like the rest.
+`pis` and are covered by backups and restores like the rest. Its `search_path` is
+`analysis, public`: tables created without a schema go to `analysis`, and Django's tables in
+`public` can still be read without a prefix.
 
 Open the tunnel (leave it running while you work):
 
@@ -490,4 +493,5 @@ df = pd.read_sql("SELECT * FROM analysis.responses", db)
 ```
 
 Django's table names contain capital letters (`surveryBackend_...`), so quote them in SQL.
-Keep your own tables in `analysis`: `public` belongs to Django's migrations.
+Django keeps its tables in `public`, the default schema, and its migrations may change
+anything there; keep your own tables in `analysis`.
