@@ -2,27 +2,26 @@
 # First-time setup of a fresh Debian/Ubuntu server. See "Deployment" in the root README.
 #
 #   sudo git clone https://github.com/RNS-ago/pythonsupport-survey.git /srv/pythonsupport-survey
-#   sudo /srv/pythonsupport-survey/deploy/setup.sh survey.example.dk
+#   sudo /srv/pythonsupport-survey/deploy/setup.sh psqdb.compute.dtu.dk
 #
 # Test mode, for trying the setup on a local machine or container (never in production):
 #
 #   sudo /srv/pythonsupport-survey/deploy/setup.sh --test [host]    # host defaults to localhost
 #
-# It serves plain HTTP without a certificate, with DEBUG=1, because without HTTPS the
-# production session cookie (HTTPS-only) would make logging in impossible.
+# There is no nginx in front, so gunicorn serves plain HTTP on port 2810 to any machine, with
+# DEBUG=1, because without HTTPS the production session cookie (HTTPS-only) would make
+# logging in impossible.
 #
 # Safe to run again after a failure: finished steps are skipped or repeated harmlessly.
 USAGE="usage: setup.sh <domain>  |  setup.sh --test [host]"
 if [[ ${1:-} == --test ]]; then
   TEST_MODE=1
   DOMAIN=${2:-localhost}
-  SCHEME=http
-  SITE_ADDRESS=http://$DOMAIN
+  URL=http://$DOMAIN:2810
 else
   TEST_MODE=
   DOMAIN=${1:?$USAGE}
-  SCHEME=https
-  SITE_ADDRESS=$DOMAIN
+  URL=https://$DOMAIN
 fi
 source "$(dirname "$0")/common.sh"
 
@@ -30,14 +29,14 @@ test_mode_warning() {
   # Bold red on a terminal, like step()'s colours; plain text when piped to a log.
   local on='' off=''
   [ -t 1 ] && { on='\033[1;31m'; off='\033[0m'; }
-  printf "\n${on}!!! TEST MODE: plain HTTP, DEBUG=1 and no HTTPS certificate.${off}\n"
+  printf "\n${on}!!! TEST MODE: plain HTTP, DEBUG=1, and gunicorn reachable from other machines.${off}\n"
   printf "${on}!!! Do not use this setup in production. Run setup.sh <domain> on the real server.${off}\n"
 }
 [[ -z $TEST_MODE ]] || test_mode_warning
 
 step "System packages"
 apt-get update
-apt-get install -y git sudo curl openssl sqlite3 cron caddy
+apt-get install -y git sudo curl openssl sqlite3 cron
 
 step "uv"
 command -v uv >/dev/null \
@@ -63,11 +62,12 @@ else
   cat > "$ENV_FILE" <<EOF
 SECRET_KEY=$(openssl rand -hex 32)
 ALLOWED_HOSTS=$DOMAIN
-FRONTEND_ORIGINS=$SCHEME://$DOMAIN
+FRONTEND_ORIGINS=$URL
 SURVEY_PASSWORD=$SURVEY_PASSWORD
 DATABASE_PATH=/var/lib/pis-survey/db.sqlite3
 EOF
-  [[ -z $TEST_MODE ]] || echo "DEBUG=1" >> "$ENV_FILE"
+  # No nginx in front in test mode: let the browser reach gunicorn directly (port 2810).
+  [[ -z $TEST_MODE ]] || printf 'DEBUG=1\nPIS_BIND=0.0.0.0:2810\n' >> "$ENV_FILE"
 fi
 # pis reads the settings but can't change them.
 chown root:"$APP_USER" "$ENV_FILE"
@@ -92,18 +92,8 @@ systemctl enable --now $SERVICE
 systemctl restart $SERVICE
 check_service
 
-step "Caddy (web server and HTTPS certificate)"
-# Replaces the package's default site. The site itself is deploy/Caddyfile in the checkout.
-printf '%s {\n\timport %s\n}\n' "$SITE_ADDRESS" "$APP_DIR/deploy/Caddyfile" > /etc/caddy/Caddyfile
-caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-# Start Caddy if apt didn't (e.g. in Docker), reload it if it is already running.
-systemctl enable caddy
-systemctl reload-or-restart caddy
-# Without test mode, Caddy now fetches the certificate in the background. That needs DNS for
-# $DOMAIN pointing at this server and ports 80/443 open; see: journalctl -u caddy
-
-step "Admin account for $SCHEME://$DOMAIN/admin/"
+step "Admin account for $URL/admin/"
 manage_as "$APP_USER" createsuperuser
 
-step "Done: $SCHEME://$DOMAIN"
+step "Done: $URL"
 [[ -z $TEST_MODE ]] || test_mode_warning

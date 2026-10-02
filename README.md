@@ -17,13 +17,35 @@ The project has two parts that are deployed together on one server:
 More detail on each part: [`frontend/readme.md`](frontend/readme.md) and
 [`backend/README.md`](backend/README.md).
 
+## Contents
+
+- [How the frontend and backend work together](#how-the-frontend-and-backend-work-together)
+  - [Supporters](#supporters)
+  - [Students](#students)
+  - [Endpoints](#endpoints)
+- [Local development](#local-development)
+- [Deployment](#deployment)
+  - [Before you start](#before-you-start)
+  - [First-time setup](#first-time-setup)
+  - [Trying the setup locally (test mode)](#trying-the-setup-locally-test-mode)
+  - [Importing the old data](#importing-the-old-data)
+  - [Updating](#updating)
+  - [Changing settings](#changing-settings)
+  - [Permissions](#permissions)
+  - [Backups and restore](#backups-and-restore)
+  - [Useful commands](#useful-commands)
+
 ## How the frontend and backend work together
 
 ```
-browser ──▶ Caddy ──┬─ /api/, /admin/  ──▶ gunicorn ──▶ Django ──▶ SQLite (DATABASE_PATH)
-                    ├─ /static/        ──▶ backend/staticfiles/ (admin CSS/JS)
-                    └─ everything else ──▶ frontend/
+browser ──▶ nginx (DTU, HTTPS) ──▶ gunicorn on 127.0.0.1:2810 ──▶ Django ──┬─ /api/, /admin/ ──▶ SQLite (DATABASE_PATH)
+                                                                        ├─ /static/        ──▶ backend/staticfiles/ (admin CSS/JS)
+                                                                        └─ everything else ──▶ frontend/
 ```
+
+DTU runs nginx on the server, with the certificate for `https://psqdb.compute.dtu.dk`. It
+forwards every request to `http://localhost:2810`, where Django answers all of them,
+including the frontend files (see `backend/pythonsupport/pythonsupport/urls.py`).
 
 The frontend and the API are served from the same address, so the frontend calls the
 API with relative URLs (`apiBase = ""` in `frontend/js/config.js`). No cross-origin
@@ -113,13 +135,14 @@ uv run --env-file ../.env python manage.py test
 
 ## Deployment
 
-The production setup is one Debian or Ubuntu server running:
+HTTPS is handled by DTU's nginx, which is already set up on the server
+(`/etc/nginx/conf.d/psqdb.conf`, not part of this repository). Our part only has to answer
+on `127.0.0.1:2810`.
 
-- **Caddy**: serves `frontend/` and the admin's static files, terminates HTTPS, and
-  forwards `/api/` and `/admin/` to gunicorn. It gets and renews the Let's Encrypt
-  certificate by itself.
+The server runs:
+
 - **gunicorn**: runs Django as the systemd service `pis-survey`, as the system user
-  `pis`, listening on `127.0.0.1:8000` only.
+  `pis`, listening on `127.0.0.1:2810` only.
 - **SQLite**: `/var/lib/pis-survey/db.sqlite3`, outside the checkout, backed up daily.
 
 The code lives in one checkout at `/srv/pythonsupport-survey`, and the scripts and config
@@ -133,14 +156,23 @@ re-cloning or cleaning the checkout can never delete the data.
 | `backup.sh` | Back up the database (daily from cron, and before every update) |
 | `common.sh` | Paths and helpers shared by the scripts |
 | `pis-survey.service` | systemd unit for gunicorn |
-| `Caddyfile` | Caddy site, read straight from the checkout |
 
 ### Before you start
 
 - A Debian or Ubuntu server where you have `sudo`.
-- A domain name (for example `survey.example.dk`) whose DNS points at the server.
-- Ports 80 and 443 open to the internet. Let's Encrypt needs port 80 to issue the
-  certificate.
+- nginx on that server forwarding `https://psqdb.compute.dtu.dk` to `http://localhost:2810`,
+  with these lines in its `location` block (ask whoever manages it if they're missing):
+
+  ```nginx
+  proxy_set_header Host $host;
+  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+  proxy_set_header X-Forwarded-Proto $scheme;
+  ```
+
+  Without `Host $host`, nginx sends `Host: localhost:2810` and Django answers every request
+  with `400 Bad Request`, because only the real domain is in `ALLOWED_HOSTS`. Without
+  `X-Forwarded-Proto`, Django thinks requests arrive over plain HTTP; the site still works,
+  but links Django generates start with `http://`.
 - The supporter password you want to use. Avoid spaces, quotes, `#`, `$` and `\`: it is
   stored in an environment file, where those characters get special meaning.
 
@@ -160,12 +192,12 @@ re-cloning or cleaning the checkout can never delete the data.
 2. Run the setup script with your domain:
 
    ```sh
-   sudo /srv/pythonsupport-survey/deploy/setup.sh survey.example.dk
+   sudo /srv/pythonsupport-survey/deploy/setup.sh psqdb.compute.dtu.dk
    ```
 
    It will:
 
-   1. Install git, Caddy, sqlite3 and uv.
+   1. Install git, sqlite3 and uv.
    2. Create the `pis` system user, and make root the owner of the checkout.
    3. Create `/var/lib/pis-survey/` for the database, readable only by `pis`.
    4. Ask for the supporter password and write `backend/.env` with a random
@@ -174,20 +206,20 @@ re-cloning or cleaning the checkout can never delete the data.
    5. Install the Python dependencies, create the database, and collect the admin's
       static files.
    6. Install the daily backup cron job.
-   7. Start the `pis-survey` service and point Caddy at `deploy/Caddyfile`. Caddy then
-      fetches the HTTPS certificate in the background.
+   7. Start the `pis-survey` service on `127.0.0.1:2810`, and check that Django answers.
    8. Ask you to create the first admin account for `/admin/`.
 
    If a step fails, fix the cause and run the script again. It keeps the existing
    `.env`, so rerunning it is safe.
 
-3. Open `https://survey.example.dk`, log in with the supporter password, and submit a
+3. Open `https://psqdb.compute.dtu.dk`, log in with the supporter password, and submit a
    test response and a test problem log. Check that both appear under
-   `https://survey.example.dk/admin/`.
+   `https://psqdb.compute.dtu.dk/admin/`.
 
 The site only works over HTTPS: in production the session cookie is HTTPS-only, so
-logging in over plain HTTP fails. If the certificate doesn't arrive, check
-`sudo journalctl -u caddy`, fix DNS or the firewall, and run `sudo systemctl restart caddy`.
+logging in over plain HTTP fails. If the site answers `400 Bad Request` or `502 Bad
+Gateway`, check the nginx lines in [Before you start](#before-you-start) and
+`sudo systemctl status pis-survey`.
 
 ### Trying the setup locally (test mode)
 
@@ -195,26 +227,27 @@ To try `setup.sh` without a domain, for example in a Debian or Ubuntu container 
 clone the repository to `/srv/pythonsupport-survey` as above and run:
 
 ```sh
-sudo /srv/pythonsupport-survey/deploy/setup.sh --test            # serves http://localhost
+sudo /srv/pythonsupport-survey/deploy/setup.sh --test            # serves http://localhost:2810
 sudo /srv/pythonsupport-survey/deploy/setup.sh --test my-vm.lan  # or another host name
 ```
 
-Test mode differs from a real setup in two ways:
+Test mode differs from a real setup in two ways, both written to `backend/.env`:
 
-- Caddy serves the site over plain HTTP and doesn't request a certificate.
-- It writes `DEBUG=1` to `backend/.env`. Without HTTPS, the production session cookie
-  (HTTPS-only) would never be sent back, and logging in would fail.
+- `PIS_BIND=0.0.0.0:2810`: there is no nginx in front, so gunicorn serves plain HTTP on
+  port 2810 to other machines too, not only to localhost.
+- `DEBUG=1`: without HTTPS, the production session cookie (HTTPS-only) would never be sent
+  back, and logging in would fail.
 
 The script prints a warning at the start and the end. **Never use test mode in
 production**: debug mode shows detailed error pages, and without HTTPS the supporter
 password travels unencrypted.
 
-Test mode only writes `DEBUG=1` when it creates `backend/.env`. If a `.env` already exists
-from an earlier run without `--test`, add `DEBUG=1` to it by hand, then run
+Test mode only writes these when it creates `backend/.env`. If a `.env` already exists
+from an earlier run without `--test`, add them by hand, then run
 `sudo systemctl restart pis-survey`.
 
 In a container, run it with systemd as the init process (the script manages services with
-`systemctl`), and publish port 80, for example `-p 8080:80`. The site is then at
+`systemctl`), and publish port 2810, for example `-p 8080:2810`. The site is then at
 <http://localhost:8080>.
 
 ### Importing the old data
@@ -241,8 +274,7 @@ sudo /srv/pythonsupport-survey/deploy/update.sh
 To deploy another branch, for example for testing: `sudo /srv/pythonsupport-survey/deploy/update.sh my-branch`.
 
 The script pulls the code, installs dependencies and collects static files. It then stops
-gunicorn, backs up the database, applies migrations, starts gunicorn again and reloads
-Caddy. The site is down for the few seconds of the migrations; supporters' devices queue
+gunicorn, backs up the database, applies migrations and starts gunicorn again. The site is down for the few seconds of the migrations; supporters' devices queue
 survey responses meanwhile.
 
 After starting gunicorn, the script checks that Django answers. If any step after the pull
@@ -252,9 +284,6 @@ then on a detached commit; the next `update.sh` returns to the branch.
 
 Frontend changes are live as soon as the code is pulled. Tablets in kiosk mode may keep
 old files cached until they reload the page.
-
-Changes to `deploy/Caddyfile` go live with the update, because Caddy reads it from the
-checkout. `/etc/caddy/Caddyfile` only holds the domain and an `import` of that file.
 
 ### Changing settings
 
@@ -285,7 +314,7 @@ Django runs as the `pis` user, and `pis` can change only the data, never the pro
 
 If an attacker ever finds a bug that lets them run code inside Django, that code runs as
 `pis`. It can reach the data, since the app needs that to work, but it cannot plant a
-backdoor in the backend or change the JavaScript that Caddy sends to supporters. Fixing the
+backdoor in the backend or change the JavaScript that supporters' browsers load. Fixing the
 bug and restarting the service removes them.
 
 This is why the scripts run `git`, `uv sync` and `collectstatic` as root, and only the
@@ -313,5 +342,4 @@ sudo systemctl start pis-survey
 ```sh
 sudo systemctl status pis-survey         # is gunicorn running?
 sudo journalctl -u pis-survey -f         # backend log
-sudo journalctl -u caddy -f              # web server and certificate log
 ```

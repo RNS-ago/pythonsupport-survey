@@ -16,8 +16,8 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 DEBUG = os.environ.get('DEBUG') == '1'
 
 if not DEBUG:
-    # Production runs behind Caddy over HTTPS (see deploy/). Caddy always overwrites
-    # X-Forwarded-Proto, and gunicorn only listens on 127.0.0.1, so the header can be trusted.
+    # Production runs behind DTU's nginx over HTTPS, which should set X-Forwarded-Proto
+    # (see "Before you start" in the root README). gunicorn only listens on 127.0.0.1.
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
@@ -124,7 +124,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
-# collectstatic copies the admin's CSS/JS here; Caddy serves it at /static/.
+# collectstatic copies the admin's CSS/JS here; urls.py serves it at /static/.
 STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

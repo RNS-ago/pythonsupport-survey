@@ -1,5 +1,5 @@
 # Shared by setup.sh and update.sh; not meant to be run on its own.
-# The paths here must match pis-survey.service, Caddyfile and backup.sh.
+# The paths here must match pis-survey.service and backup.sh.
 #
 # Ownership (see "Permissions" in the root README):
 #   root owns the checkout, including backend/.venv and backend/staticfiles, and runs git and uv;
@@ -39,17 +39,16 @@ install_service() {
 }
 
 # Fail loudly if Django doesn't answer, instead of leaving a dead site.
-# Asks gunicorn directly for the admin login page, as Caddy would: the Host header must be in
-# ALLOWED_HOSTS, and X-Forwarded-Proto stops the production redirect to HTTPS.
+# Asks gunicorn directly for the admin login page, as nginx would: the Host header must be in
+# ALLOWED_HOSTS.
 check_service() {
   local host
   host=$(sed -n 's/^ALLOWED_HOSTS=\([^ ]*\).*/\1/p' backend/.env)
   for _ in {1..15}; do
     sleep 1
-    curl -fsS -o /dev/null -H "Host: $host" -H "X-Forwarded-Proto: https" \
-      http://127.0.0.1:8000/admin/login/ 2>/dev/null && return 0
+    curl -fsS -o /dev/null -H "Host: $host" http://127.0.0.1:2810/admin/login/ 2>/dev/null && return 0
   done
-  echo "Django did not answer on http://127.0.0.1:8000/admin/login/ within 15 seconds." >&2
+  echo "Django did not answer on http://127.0.0.1:2810/admin/login/ within 15 seconds." >&2
   journalctl -u $SERVICE -n 30 --no-pager
   return 1
 }

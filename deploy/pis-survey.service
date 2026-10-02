@@ -8,8 +8,11 @@ User=pis
 Group=pis
 WorkingDirectory=/srv/pythonsupport-survey/backend/pythonsupport
 EnvironmentFile=/srv/pythonsupport-survey/backend/.env
-# Only Caddy talks to gunicorn, so it listens on localhost only.
-ExecStart=/srv/pythonsupport-survey/backend/.venv/bin/gunicorn pythonsupport.wsgi --bind 127.0.0.1:8000 --workers 3
+# Only nginx talks to gunicorn, so it listens on localhost only: nginx forwards
+# https://psqdb.compute.dtu.dk to port 2810. Test mode sets PIS_BIND=0.0.0.0:2810 in .env,
+# which overrides this default.
+Environment=PIS_BIND=127.0.0.1:2810
+ExecStart=/srv/pythonsupport-survey/backend/.venv/bin/gunicorn pythonsupport.wsgi --bind ${PIS_BIND} --workers 3
 Restart=always
 
 [Install]

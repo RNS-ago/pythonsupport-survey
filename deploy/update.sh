@@ -62,8 +62,4 @@ install_service
 systemctl start $SERVICE
 check_service
 
-step "Caddy"
-caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-systemctl reload caddy
-
 step "Done. Frontend files are served straight from the checkout, so they are live already."
