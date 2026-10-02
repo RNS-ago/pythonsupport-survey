@@ -11,7 +11,7 @@ The project has two parts that are deployed together on one server:
 | Part | Folder | What it is |
 | --- | --- | --- |
 | Frontend | [`frontend/`](frontend/) | Static HTML, CSS and JavaScript modules. No build step. |
-| Backend | [`backend/`](backend/) | Django app with an SQLite database. Stores responses and problem logs, checks the supporter password, issues links and QR codes, and hosts the admin site. |
+| Backend | [`backend/`](backend/) | Django app with a PostgreSQL database (SQLite in local development). Stores responses and problem logs, checks the supporter password, issues links and QR codes, and hosts the admin site. |
 | Deployment | [`deploy/`](deploy/) | Scripts and config for setting up and updating the server. |
 
 More detail on each part: [`frontend/readme.md`](frontend/readme.md) and
@@ -35,11 +35,12 @@ More detail on each part: [`frontend/readme.md`](frontend/readme.md) and
   - [Permissions](#permissions)
   - [Backups and restore](#backups-and-restore)
   - [Useful commands](#useful-commands)
+  - [Notebooks](#notebooks)
 
 ## How the frontend and backend work together
 
 ```
-browser ──▶ nginx (DTU, HTTPS) ──▶ gunicorn on 127.0.0.1:2810 ──▶ Django ──┬─ /api/, /admin/ ──▶ SQLite (DATABASE_PATH)
+browser ──▶ nginx (DTU, HTTPS) ──▶ gunicorn on 127.0.0.1:2810 ──▶ Django ──┬─ /api/, /admin/ ──▶ PostgreSQL (pis_survey)
                                                                         ├─ /static/        ──▶ backend/staticfiles/ (admin CSS/JS)
                                                                         └─ everything else ──▶ frontend/
 ```
@@ -124,9 +125,10 @@ reload.
 `DEBUG=1` matters locally: without it the session cookie is HTTPS-only, and logging in
 over `http://localhost` fails.
 
-The database is `backend/pythonsupport/db.sqlite3` (git-ignored). To keep it somewhere
-else, add `DATABASE_PATH=/path/to/db.sqlite3` to `.env`; the server does this to keep
-its database outside the checkout.
+Locally, the database is the SQLite file `backend/pythonsupport/db.sqlite3` (git-ignored),
+so you don't need to install PostgreSQL. The server uses PostgreSQL, which Django switches
+to when `DATABASE_NAME` is set (see [Changing settings](#changing-settings)). The code only
+uses Django's ORM, so both behave the same.
 
 Run the backend tests from `backend/pythonsupport/`:
 
@@ -144,11 +146,17 @@ The server runs:
 
 - **gunicorn**: runs Django as the systemd service `pis-survey`, as the system user
   `pis`, listening on `127.0.0.1:2810` only.
-- **SQLite**: `/var/lib/pis-survey/db.sqlite3`, outside the checkout, backed up daily.
+- **PostgreSQL**: the database `pis_survey`, owned by the database user `pis`, backed up
+  daily. Django's tables are in the `public` schema; processed tables from the notebooks go
+  in the `analysis` schema (see [Notebooks](#notebooks)).
 
 The code lives in one checkout at `/srv/pythonsupport-survey`, and the scripts and config
-files expect that path. The database is kept apart from it in `/var/lib/pis-survey/`, so
-re-cloning or cleaning the checkout can never delete the data.
+files expect that path. The data lives in PostgreSQL, so re-cloning or cleaning the checkout
+can never delete it.
+
+Django and the notebooks connect over PostgreSQL's local socket, as the operating-system user
+they run as (peer authentication), so there are no database passwords. PostgreSQL does not
+listen on the network.
 
 | File in `deploy/` | Purpose |
 | --- | --- |
@@ -269,13 +277,15 @@ Django's file serving to matter, add WhiteNoise to Django rather than changing n
 
    It will:
 
-   1. Install git, sqlite3 and uv.
+   1. Install git, PostgreSQL and uv.
    2. Create the `pis` system user, and make root the owner of the checkout.
-   3. Create `/var/lib/pis-survey/` for the database, readable only by `pis`.
+   3. Create the PostgreSQL user `pis`, the database `pis_survey` and its `analysis`
+      schema, and a database login for you (the account you ran `sudo` from) for the
+      [notebooks](#notebooks).
    4. Ask for the supporter password and write `backend/.env` with a random
       `SECRET_KEY`, `ALLOWED_HOSTS`, `FRONTEND_ORIGINS` and
-      `DATABASE_PATH=/var/lib/pis-survey/db.sqlite3`. Root owns it; `pis` can only read it.
-   5. Install the Python dependencies, create the database, and collect the admin's
+      `DATABASE_NAME=pis_survey`. Root owns it; `pis` can only read it.
+   5. Install the Python dependencies, create Django's tables, and collect the admin's
       static files.
    6. Install the daily backup cron job.
    7. Start the `pis-survey` service on `127.0.0.1:2810`, and check that Django answers.
@@ -367,7 +377,7 @@ Production settings are in `/srv/pythonsupport-survey/backend/.env`:
 | `ALLOWED_HOSTS` | Space-separated host names the site answers to |
 | `FRONTEND_ORIGINS` | Space-separated origins allowed to call the API from a browser |
 | `SURVEY_PASSWORD` | The supporter password (daily code) |
-| `DATABASE_PATH` | The SQLite file: `/var/lib/pis-survey/db.sqlite3`. If you change it, also change `DB` in `deploy/backup.sh`, and move the file. Unset means `backend/pythonsupport/db.sqlite3`, which is only meant for local development. |
+| `DATABASE_NAME` | The PostgreSQL database: `pis_survey`. If you change it, also change `DB` in `deploy/backup.sh` and the database name in `deploy/update.sh`. Unset means the SQLite file `backend/pythonsupport/db.sqlite3`, which is only meant for local development. |
 | `DEBUG` | Leave unset in production. `1` turns on debug mode. |
 
 Edit it with `sudo`, then run `sudo systemctl restart pis-survey`.
@@ -381,7 +391,7 @@ Django runs as the `pis` user, and `pis` can change only the data, never the pro
 | `/srv/pythonsupport-survey/` (code, `backend/.venv`, `backend/staticfiles`) | root | read |
 | `/srv/pythonsupport-survey/backend/.env` | root, group `pis` | read |
 | `/opt/uv-python/` (the Python that uv installs) | root | read |
-| `/var/lib/pis-survey/` (the database) | `pis` | read and write |
+| The `pis_survey` database | PostgreSQL user `pis` | read and write |
 | `/var/backups/pis-survey/` | `pis` | read and write |
 
 If an attacker ever finds a bug that lets them run code inside Django, that code runs as
@@ -397,21 +407,68 @@ anything that touches the database.
 ### Backups and restore
 
 `deploy/backup.sh` runs daily at 03:00 and before every update. It writes
-`/var/backups/pis-survey/db-<date>.sqlite3` and deletes copies older than 30 days
-(`KEEP_DAYS` in the script). The backups contain student numbers: keep them only on
+`/var/backups/pis-survey/db-<date>.dump` (a `pg_dump` of the whole database, including the
+`analysis` schema) and deletes dumps older than 30 days (`KEEP_DAYS` in the script). The backups contain student numbers: keep them only on
 storage the team controls, and only as long as the retention policy allows.
 
 To restore a backup:
 
 ```sh
 sudo systemctl stop pis-survey
-sudo -u pis cp /var/backups/pis-survey/db-<date>.sqlite3 /var/lib/pis-survey/db.sqlite3
+sudo -u pis pg_restore --clean --if-exists --single-transaction --dbname=pis_survey \
+  /var/backups/pis-survey/db-<date>.dump
 sudo systemctl start pis-survey
 ```
+
+`--single-transaction` means a failed restore changes nothing.
 
 ### Useful commands
 
 ```sh
 sudo systemctl status pis-survey         # is gunicorn running?
 sudo journalctl -u pis-survey -f         # backend log
+sudo -u pis psql pis_survey              # SQL shell on the database
 ```
+
+### Notebooks
+
+Jupyter notebooks run on your own machine and read the live database through an SSH tunnel.
+PostgreSQL stays closed to the network: the tunnel forwards a local port to its socket on
+the server, and PostgreSQL sees you as your own account on the server.
+
+`setup.sh` gives the account that ran it a database login. To give another server account
+`alice` one:
+
+```sh
+sudo -u postgres psql -c 'CREATE ROLE "alice" LOGIN IN ROLE pis' -c 'ALTER ROLE "alice" SET role = pis'
+```
+
+The login has the same rights as the app: it can read and change everything, including
+student numbers. Every session switches to `pis`, so tables the notebooks create belong to
+`pis` and are covered by backups and restores like the rest.
+
+Open the tunnel (leave it running while you work):
+
+```sh
+ssh -N -L 5432:/var/run/postgresql/.s.PGSQL.5432 <your account>@psqdb.compute.dtu.dk
+```
+
+Then, in a notebook (needs `pandas`, `sqlalchemy` and `psycopg[binary]`):
+
+```python
+import pandas as pd
+from sqlalchemy import create_engine
+
+db = create_engine("postgresql+psycopg://<your account>@localhost:5432/pis_survey")
+
+# Processing: raw data in, a redacted table out, in the analysis schema.
+raw = pd.read_sql('SELECT * FROM "surveryBackend_satisfactionsurveyresponse"', db)
+processed = raw.drop(columns=["student_number", "username"])
+processed.to_sql("responses", db, schema="analysis", if_exists="replace", index=False)
+
+# Visualization: only the processed table.
+df = pd.read_sql("SELECT * FROM analysis.responses", db)
+```
+
+Django's table names contain capital letters (`surveryBackend_...`), so quote them in SQL.
+Keep your own tables in `analysis`: `public` belongs to Django's migrations.

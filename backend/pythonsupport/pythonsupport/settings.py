@@ -79,14 +79,24 @@ WSGI_APPLICATION = 'pythonsupport.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        # The server keeps it outside the checkout (deploy/setup.sh sets DATABASE_PATH);
-        # locally it defaults to a file next to manage.py.
-        'NAME': os.environ.get('DATABASE_PATH', BASE_DIR / 'db.sqlite3'),
+if os.environ.get('DATABASE_NAME'):
+    # The server: PostgreSQL on the same machine (deploy/setup.sh sets DATABASE_NAME).
+    # Connects over the local socket as the OS user running Django (pis), so no password.
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ['DATABASE_NAME'],
+            'HOST': '/var/run/postgresql',
+        }
     }
-}
+else:
+    # Local development: a file next to manage.py.
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation

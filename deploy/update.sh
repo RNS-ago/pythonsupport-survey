@@ -18,7 +18,6 @@ if [[ -z ${PIS_UPDATE_FROM:-} ]]; then
   PIS_UPDATE_FROM=$FROM exec "$APP_DIR/deploy/update.sh" "$BRANCH"
 fi
 
-DB=/var/lib/pis-survey/db.sqlite3   # must match DATABASE_PATH in backend/.env
 BACKUP=
 
 rollback() {
@@ -28,9 +27,7 @@ rollback() {
   systemctl stop $SERVICE
   if [[ -n $BACKUP ]]; then
     echo "Restoring the database from $BACKUP"
-    sudo -u "$APP_USER" cp "$BACKUP" "$DB"
-    # A journal left by an interrupted migration would be replayed onto the restored copy.
-    rm -f "$DB-journal"
+    sudo -u "$APP_USER" pg_restore --clean --if-exists --single-transaction --dbname=pis_survey "$BACKUP"
   fi
   git checkout --detach "$PIS_UPDATE_FROM"
   sync_deps
