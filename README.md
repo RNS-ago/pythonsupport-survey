@@ -168,7 +168,8 @@ listen on the network.
 
 ### Before you start
 
-- A Debian or Ubuntu server where you have `sudo`.
+- A Debian or Ubuntu server where you have `sudo`, with the `pythonsupport` group for the
+  people working on the project (see [Permissions](#permissions)).
 - nginx on that server forwarding `https://psqdb.compute.dtu.dk` to port 2810, configured
   as in [nginx](#nginx).
 - The supporter password you want to use. Avoid spaces, quotes, `#`, `$` and `\`: it is
@@ -278,7 +279,8 @@ Django's file serving to matter, add WhiteNoise to Django rather than changing n
    It will:
 
    1. Install git, PostgreSQL and uv.
-   2. Create the `pis` system user, and make root the owner of the checkout.
+   2. Create the `pis` system user, and make root and the `pythonsupport` group the owners
+      of the checkout.
    3. Create the PostgreSQL user `pis`, the database `pis_survey` and its `analysis`
       schema, and a database login for you (the account you ran `sudo` from) for the
       [notebooks](#notebooks).
@@ -384,15 +386,16 @@ Edit it with `sudo`, then run `sudo systemctl restart pis-survey`.
 
 ### Permissions
 
-Django runs as the `pis` user, and `pis` can change only the data, never the program:
+Django runs as the `pis` user, and `pis` can change only the data, never the program. The
+people working on the project, the server's `pythonsupport` group, can change the program:
 
-| Path | Owner | `pis` can |
-| --- | --- | --- |
-| `/srv/pythonsupport-survey/` (code, `backend/.venv`, `backend/staticfiles`) | root | read |
-| `/srv/pythonsupport-survey/backend/.env` | root, group `pis` | read |
-| `/opt/uv-python/` (the Python that uv installs) | root | read |
-| The `pis_survey` database | PostgreSQL user `pis` | read and write |
-| `/var/backups/pis-survey/` | `pis` | read and write |
+| Path | Owner | `pythonsupport` can | `pis` can |
+| --- | --- | --- | --- |
+| `/srv/pythonsupport-survey/` (code, `backend/.venv`, `backend/staticfiles`) | root, group `pythonsupport` | read and write | read |
+| `/srv/pythonsupport-survey/backend/.env` | root, group `pis` | nothing | read |
+| `/opt/uv-python/` (the Python that uv installs) | root | read | read |
+| The `pis_survey` database | PostgreSQL user `pis` | through a [notebook login](#notebooks) | read and write |
+| `/var/backups/pis-survey/` | `pis` | nothing | read and write |
 
 If an attacker ever finds a bug that lets them run code inside Django, that code runs as
 `pis`. It can reach the data, since the app needs that to work, but it cannot plant a
@@ -401,8 +404,24 @@ bug and restarting the service removes them.
 
 This is why the scripts run `git`, `uv sync` and `collectstatic` as root, and only the
 commands that touch the database (`migrate`, `createsuperuser`, backups) as `pis`. Run
-manual commands the same way: `sudo` for anything in the checkout, `sudo -u pis` for
-anything that touches the database.
+manual commands the same way: `sudo` (or your own account, if you're in `pythonsupport`)
+for anything in the checkout, `sudo -u pis` for anything that touches the database. Never
+add `pis` to the `pythonsupport` group.
+
+`setup.sh` sets up the checkout for the group:
+
+- The group owns every file, and new directories inherit it (setgid).
+- A default ACL gives every file created later, by anyone or by `git pull`, read and write
+  for the group, whatever the creator's umask. `core.sharedRepository=group` does the same
+  for git's own files.
+- The checkout is marked as a git `safe.directory` for everyone, because git otherwise
+  refuses to work in a repository owned by another user (root).
+
+Members can run `git` in the checkout and edit files there, but deploying with
+`update.sh` still needs `sudo`. Edits in the checkout are live: frontend files at once,
+backend code after `sudo systemctl restart pis-survey`. Prefer committing and deploying
+with `update.sh`; its `git pull --ff-only` stops if the checkout has local commits or
+conflicting edits.
 
 ### Backups and restore
 

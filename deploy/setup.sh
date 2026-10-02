@@ -36,7 +36,7 @@ test_mode_warning() {
 
 step "System packages"
 apt-get update
-apt-get install -y git sudo curl openssl cron postgresql
+apt-get install -y git sudo curl openssl cron acl postgresql
 
 step "uv"
 command -v uv >/dev/null \
@@ -45,8 +45,22 @@ command -v uv >/dev/null \
 step "Service user '$APP_USER'"
 id "$APP_USER" &>/dev/null \
   || useradd --system --create-home --home-dir "/var/lib/$APP_USER" --shell /usr/sbin/nologin "$APP_USER"
-# The app can read its code but not change it.
-chown -R root:root "$APP_DIR"
+
+step "Shared checkout (group '$DEV_GROUP')"
+if ! getent group "$DEV_GROUP" >/dev/null; then
+  # The real server gets the group from DTU's directory; only a test machine may create it.
+  [[ -n $TEST_MODE ]] || { echo "The group '$DEV_GROUP' doesn't exist on this server." >&2; exit 1; }
+  groupadd "$DEV_GROUP"
+fi
+# Members of the group can change the checkout and run git in it; the app (pis, not a member)
+# can only read it. The default ACL gives files created later, by anyone, the same group rights.
+chown -R root:"$DEV_GROUP" "$APP_DIR"
+setfacl -R -m g::rwX -m d:g::rwX -m o::rX -m d:o::rX "$APP_DIR"
+find "$APP_DIR" -type d -exec chmod g+s {} +
+git config core.sharedRepository group
+# git refuses to work in a repository owned by someone else unless it is marked safe.
+git config --system --get-all safe.directory | grep -qxF "$APP_DIR" \
+  || git config --system --add safe.directory "$APP_DIR"
 
 step "PostgreSQL database"
 # apt doesn't start services everywhere (e.g. Docker images), so make sure PostgreSQL runs.
@@ -89,7 +103,9 @@ EOF
   # No nginx in front in test mode: let the browser reach gunicorn directly (port 2810).
   [[ -z $TEST_MODE ]] || printf 'DEBUG=1\nPIS_BIND=0.0.0.0:2810\n' >> "$ENV_FILE"
 fi
-# pis reads the settings but can't change them.
+# pis reads the settings but can't change them. They hold the secret key and the password,
+# so the developers' group gets no access (setfacl -b drops the ACL from the step above).
+setfacl -b "$ENV_FILE"
 chown root:"$APP_USER" "$ENV_FILE"
 chmod 640 "$ENV_FILE"
 

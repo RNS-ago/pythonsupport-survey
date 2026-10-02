@@ -3,12 +3,15 @@
 #
 # Ownership (see "Permissions" in the root README):
 #   root owns the checkout, including backend/.venv and backend/staticfiles, and runs git and uv;
-#   pis runs the app and can only write the database folder and the backups.
+#   the developers' group can change the checkout too; pis is not in it;
+#   pis runs the app and can only write the database and the backups.
 set -euo pipefail
 
 APP_DIR=/srv/pythonsupport-survey
 APP_USER=pis
 SERVICE=pis-survey
+# The server's group for the people working on this project (gid 15118 on psqdb).
+DEV_GROUP=pythonsupport
 
 [[ $EUID -eq 0 ]] || { echo "Run this script as root (sudo)." >&2; exit 1; }
 [[ "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" == "$APP_DIR" ]] \
