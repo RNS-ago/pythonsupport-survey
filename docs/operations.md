@@ -35,7 +35,7 @@ people working on the project, the server's `pythonsupport` group, can change th
 | `/srv/pythonsupport-survey/backend/.env` | root, group `pis` | nothing | read |
 | `/opt/uv-python/` (the Python that uv installs) | root | read | read |
 | The `pis_survey` database | PostgreSQL user `pis` | through a [notebook login](data-analysis.md#database-logins) | read and write |
-| `/var/backups/pis-survey/` | `pis` | nothing | read and write |
+| `/var/backups/pis-survey/` | root | nothing | nothing |
 
 `backend/.env` holds the secrets (`SECRET_KEY` and the supporter password), so `setup.sh`
 takes it out of the group's access: it removes the ACL the rest of the checkout gets, and
@@ -47,7 +47,7 @@ backdoor in the backend or change the JavaScript that supporters' browsers load.
 bug and restarting the service removes them.
 
 This is why the scripts run `git`, `uv sync` and `collectstatic` as root, and only the
-commands that touch the database (`migrate`, `createsuperuser`, backups) as `pis`. Run
+commands that touch the database (`migrate`, `createsuperuser`, `pg_dump`) as `pis`. Run
 manual commands the same way: `sudo` (or your own account, if you're in `pythonsupport`)
 for anything in the checkout, `sudo -u pis` for anything that touches the database. Never
 add `pis` to the `pythonsupport` group.
@@ -75,15 +75,22 @@ conflicting edits.
 backups contain student numbers: keep them only on storage the team controls, and only as
 long as the retention policy allows.
 
+The script runs as root: `pg_dump` runs as `pis`, which owns the database, and root writes
+the dump to a directory only root can open. Code running as `pis` (for example after a bug
+in Django is exploited) can corrupt the database, but not the existing backups. Dumps made
+after such corruption contain it too, so the older dumps are the ones to restore. The
+backups do not survive a compromise of root; for that, copy them off the server.
+
 To restore a backup:
 
 ```sh
 sudo systemctl stop pis-survey
-sudo -u pis pg_restore --clean --if-exists --single-transaction --dbname=pis_survey \
-  /var/backups/pis-survey/db-<date>.dump
+sudo cat /var/backups/pis-survey/db-<date>.dump \
+  | sudo -u pis pg_restore --clean --if-exists --single-transaction --dbname=pis_survey
 sudo systemctl start pis-survey
 ```
 
+`pis` can't open the backup directory, so root reads the dump and passes it on stdin.
 `--single-transaction` means a failed restore changes nothing.
 
 ## Useful commands

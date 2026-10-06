@@ -4,7 +4,7 @@
 # Ownership (see "Permissions" in docs/operations.md):
 #   root owns the checkout, including backend/.venv and backend/staticfiles, and runs git and uv;
 #   the developers' group can change the checkout too; pis is not in it;
-#   pis runs the app and can only write the database and the backups.
+#   pis runs the app and can only write the database; root owns the backups.
 set -euo pipefail
 
 APP_DIR=/srv/pythonsupport-survey

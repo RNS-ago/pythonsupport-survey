@@ -27,7 +27,8 @@ rollback() {
   systemctl stop $SERVICE
   if [[ -n $BACKUP ]]; then
     echo "Restoring the database from $BACKUP"
-    sudo -u "$APP_USER" pg_restore --clean --if-exists --single-transaction --dbname=pis_survey "$BACKUP"
+    # pis can't open the root-only backup directory, so pass the dump on stdin.
+    sudo -u "$APP_USER" pg_restore --clean --if-exists --single-transaction --dbname=pis_survey < "$BACKUP"
   fi
   git checkout --detach "$PIS_UPDATE_FROM"
   sync_deps
@@ -51,7 +52,7 @@ manage_as root collectstatic --no-input
 # backup has to be restored. Supporters' devices queue survey responses while it is down.
 step "Backup and migrations"
 systemctl stop $SERVICE
-BACKUP=$(sudo -u "$APP_USER" "$APP_DIR/deploy/backup.sh")
+BACKUP=$("$APP_DIR/deploy/backup.sh")
 manage_as "$APP_USER" migrate
 
 step "Start"

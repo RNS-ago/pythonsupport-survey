@@ -108,8 +108,9 @@ manage_as "$APP_USER" migrate
 manage_as root collectstatic --no-input
 
 step "Backups (daily at 03:00)"
-install -d -m 700 -o "$APP_USER" -g "$APP_USER" /var/backups/pis-survey
-echo "0 3 * * * $APP_USER $APP_DIR/deploy/backup.sh" > /etc/cron.d/pis-survey
+# Root-only, so a compromised app (running as pis) can't delete or change the backups.
+install -d -m 700 -o root -g root /var/backups/pis-survey
+echo "0 3 * * * root $APP_DIR/deploy/backup.sh" > /etc/cron.d/pis-survey
 # apt doesn't start services everywhere (e.g. Docker images), so make sure cron runs.
 systemctl enable --now cron
 
