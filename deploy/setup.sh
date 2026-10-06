@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# First-time setup of a fresh Debian/Ubuntu server. See "Deployment" in the root README.
+# First-time setup of a fresh Debian/Ubuntu server. See docs/deployment.md.
 #
 #   sudo git clone https://github.com/RNS-ago/pythonsupport-survey.git /srv/pythonsupport-survey
 #   sudo /srv/pythonsupport-survey/deploy/setup.sh psqdb.compute.dtu.dk

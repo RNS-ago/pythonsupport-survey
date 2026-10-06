@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the latest code of a branch (default: main). See "Updating" in the root README.
+# Deploy the latest code of a branch (default: main). See "Updating" in docs/deployment.md.
 #
 #   sudo /srv/pythonsupport-survey/deploy/update.sh [branch]
 #

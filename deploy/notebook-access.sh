@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Give every member of the developers' group a database login for the notebooks, and remove
-# the logins of people who have left it. See "Notebooks" in the root README.
+# the logins of people who have left it. See docs/data-analysis.md.
 #
 #   sudo /srv/pythonsupport-survey/deploy/notebook-access.sh
 #

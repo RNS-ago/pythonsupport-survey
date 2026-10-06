@@ -17,7 +17,7 @@ DEBUG = os.environ.get('DEBUG') == '1'
 
 if not DEBUG:
     # Production runs behind DTU's nginx over HTTPS, which should set X-Forwarded-Proto
-    # (see "Before you start" in the root README). gunicorn only listens on 127.0.0.1.
+    # (see "Before you start" in docs/deployment.md). gunicorn only listens on 127.0.0.1.
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True

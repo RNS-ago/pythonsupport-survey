@@ -64,7 +64,7 @@ The code lives in `pythonsupport/surveryBackend/`; the project settings are in
 ## Development and deployment
 
 Local development, how the backend works with the frontend, and the server deployment
-(`deploy/`) are described in the [root README](../README.md).
+(`deploy/`) are described in the [documentation](../docs/README.md).
 
 Run the tests (from `pythonsupport/`):
 
