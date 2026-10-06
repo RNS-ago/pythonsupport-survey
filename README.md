@@ -164,6 +164,7 @@ listen on the network.
 | `update.sh` | Deploy new code |
 | `backup.sh` | Back up the database (daily from cron, and before every update) |
 | `common.sh` | Paths and helpers shared by the scripts |
+| `notebook-access.sh` | Database logins for the `pythonsupport` group (see [Notebooks](#notebooks)) |
 | `pis-survey.service` | systemd unit for gunicorn |
 
 ### Before you start
@@ -282,7 +283,7 @@ Django's file serving to matter, add WhiteNoise to Django rather than changing n
    2. Create the `pis` system user, and make root and the `pythonsupport` group the owners
       of the checkout.
    3. Create the PostgreSQL user `pis`, the database `pis_survey` and its `analysis`
-      schema, and a database login for you (the account you ran `sudo` from) for the
+      schema, and a database login for every member of `pythonsupport` for the
       [notebooks](#notebooks).
    4. Ask for the supporter password and write `backend/.env` with a random
       `SECRET_KEY`, `ALLOWED_HOSTS`, `FRONTEND_ORIGINS` and
@@ -455,15 +456,19 @@ Jupyter notebooks run on your own machine and read the live database through an 
 PostgreSQL stays closed to the network: the tunnel forwards a local port to its socket on
 the server, and PostgreSQL sees you as your own account on the server.
 
-`setup.sh` gives the account that ran it a database login. To give another server account
-`alice` one:
+Every member of the `pythonsupport` group gets a database login named like their account.
+PostgreSQL can't check Linux groups itself, so `deploy/notebook-access.sh` creates the logins
+from the group's member list, and removes the logins of people who are no longer in it.
+`setup.sh` runs it; run it again whenever someone joins or leaves the group:
 
 ```sh
-sudo -u postgres psql -c 'CREATE ROLE "alice" LOGIN IN ROLE pis' -c 'ALTER ROLE "alice" SET role = pis' \
-  -c 'ALTER ROLE "alice" SET search_path = analysis, public'
+sudo /srv/pythonsupport-survey/deploy/notebook-access.sh
 ```
 
-The login has the same rights as the app: it can read and change everything, including
+It only sees members listed in the group itself (`getent group pythonsupport`); someone
+whose primary group is `pythonsupport` isn't listed there.
+
+Each login has the same rights as the app: it can read and change everything, including
 student numbers. Every session switches to `pis`, so tables the notebooks create belong to
 `pis` and are covered by backups and restores like the rest. Its `search_path` is
 `analysis, public`: tables created without a schema go to `analysis`, and Django's tables in
