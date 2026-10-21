@@ -6,7 +6,6 @@
 - [Before you start](#before-you-start)
 - [First-time setup](#first-time-setup)
 - [Trying the setup locally (test mode)](#trying-the-setup-locally-test-mode)
-- [Importing the old data](#importing-the-old-data)
 - [Updating](#updating)
 
 ## What runs on the server
@@ -35,10 +34,16 @@ listen on the network.
 | File in `deploy/` | Purpose |
 | --- | --- |
 | `setup.sh` | First-time setup of a fresh server |
-| `update.sh` | Deploy new code |
-| `backup.sh` | Back up the database (daily from cron, and before every update) |
-| `common.sh` | Paths and helpers shared by the scripts |
-| `notebook-access.sh` | Database logins for the `pythonsupport` group (see [Data analysis](data-analysis.md#database-logins)) |
+| `manage.sh update [branch]` | Deploy new code |
+| `manage.sh backup` | Back up the database (daily from cron, and before every update) |
+| `manage.sh users` | Database logins for the `pythonsupport` group (see [Data analysis](data-analysis.md#database-logins)) |
+| `lib/common.sh` | All settings (paths, users, port, backups) shared by the scripts; loads the other files in `lib/` |
+| `lib/system.sh` | Packages, uv, the `pis` user and the shared checkout |
+| `db-permissions.sql` | Schemas, roles and their rights in the database (see [Data analysis](data-analysis.md#database-logins)) |
+| `lib/postgres.sh` | The database, PAM password logins and the group's logins |
+| `lib/app.sh` | `backend/.env`, dependencies, `manage.py` and the gunicorn service |
+| `lib/backup.sh` | Backups and their cron job |
+| `lib/update.sh` | Updating, with rollback |
 | `pis-survey.service` | systemd unit for gunicorn |
 
 ## Before you start
@@ -61,7 +66,7 @@ listen on the network.
    If the repository is private, add a
    [deploy key](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys)
    for root (in `/root/.ssh/`) and clone with the `git@github.com:` URL instead.
-   `update.sh` runs `git` as root.
+   `manage.sh update` runs `git` as root.
 
 2. Run the setup script with your domain:
 
@@ -74,17 +79,20 @@ listen on the network.
    1. Install git, PostgreSQL and uv.
    2. Create the `pis` system user, and make root and the `pythonsupport` group the owners
       of the checkout.
-   3. Create the PostgreSQL user `pis`, the database `pis_survey` and its `analysis`
-      schema, and a database login for every member of `pythonsupport` for the
-      [notebooks](data-analysis.md).
+   3. Create the PostgreSQL user `pis` and the database `pis_survey`, and set up password
+      logins through PAM (SSSD).
    4. Ask for the supporter password and write `backend/.env` with a random
       `SECRET_KEY`, `ALLOWED_HOSTS`, `FRONTEND_ORIGINS` and
       `DATABASE_NAME=pis_survey`. Root owns it; `pis` can only read it.
    5. Install the Python dependencies, create Django's tables, and collect the admin's
       static files.
-   6. Install the daily backup cron job.
-   7. Start the `pis-survey` service on `127.0.0.1:2810`, and check that Django answers.
-   8. Ask you to create the first admin account for `/admin/`.
+   6. Apply `deploy/db-permissions.sql` (the `processed_data`, `static_data` and
+      `published_data` schemas, and the `pis_analyst` and `pis_viewer` roles), and create a
+      database login for every member of `pythonsupport` for the
+      [notebooks](data-analysis.md).
+   7. Install the daily backup cron job.
+   8. Start the `pis-survey` service on `127.0.0.1:2810`, and check that Django answers.
+   9. Ask you to create the first admin account for `/admin/`.
 
    If a step fails, fix the cause and run the script again. It keeps the existing
    `.env`, so rerunning it is safe.
@@ -126,28 +134,15 @@ In a container, run it with systemd as the init process (the script manages serv
 `systemctl`), and publish port 2810, for example `-p 8080:2810`. The site is then at
 <http://localhost:8080>.
 
-## Importing the old data
-
-To load the old SharePoint export once, copy the CSV to the server outside the
-repository, somewhere the `pis` user can read it, and run:
-
-```sh
-cd /srv/pythonsupport-survey/backend/pythonsupport
-sudo -u pis -H uv run --no-sync --env-file ../.env python manage.py import_legacy_csv /path/to/Raw_customer_entries.csv --dry-run
-sudo -u pis -H uv run --no-sync --env-file ../.env python manage.py import_legacy_csv /path/to/Raw_customer_entries.csv
-```
-
-The file contains student numbers. Delete it from the server afterwards.
-
 ## Updating
 
 Merge your changes to `main`, then on the server:
 
 ```sh
-sudo /srv/pythonsupport-survey/deploy/update.sh
+sudo /srv/pythonsupport-survey/deploy/manage.sh update
 ```
 
-To deploy another branch, for example for testing: `sudo /srv/pythonsupport-survey/deploy/update.sh my-branch`.
+To deploy another branch, for example for testing: `sudo /srv/pythonsupport-survey/deploy/manage.sh update my-branch`.
 
 The script pulls the code, installs dependencies and collects static files. It then stops
 gunicorn, backs up the database, applies migrations and starts gunicorn again. The site is
@@ -157,7 +152,7 @@ meanwhile.
 After starting gunicorn, the script checks that Django answers. If any step after the pull
 fails, it rolls back: it restores the database from the backup it just made (if migrations
 had started), checks out the previous commit and starts that version again. The checkout is
-then on a detached commit; the next `update.sh` returns to the branch.
+then on a detached commit; the next `manage.sh update` returns to the branch.
 
 Frontend changes are live as soon as the code is pulled. Tablets in kiosk mode may keep
 old files cached until they reload the page.

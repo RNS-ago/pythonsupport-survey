@@ -13,17 +13,18 @@
 # logging in impossible.
 #
 # Safe to run again after a failure: finished steps are skipped or repeated harmlessly.
+# The steps themselves are in deploy/lib; day-to-day jobs are in manage.sh.
+set -euo pipefail
 USAGE="usage: setup.sh <domain>  |  setup.sh --test [host]"
 if [[ ${1:-} == --test ]]; then
   TEST_MODE=1
   DOMAIN=${2:-localhost}
-  URL=http://$DOMAIN:2810
 else
   TEST_MODE=
   DOMAIN=${1:?$USAGE}
-  URL=https://$DOMAIN
 fi
-source "$(dirname "$0")/common.sh"
+source "$(dirname "$0")/lib/common.sh"
+if [[ -n $TEST_MODE ]]; then URL=http://$DOMAIN:$PORT; else URL=https://$DOMAIN; fi
 
 test_mode_warning() {
   # Bold red on a terminal, like step()'s colours; plain text when piped to a log.
@@ -34,85 +35,24 @@ test_mode_warning() {
 }
 [[ -z $TEST_MODE ]] || test_mode_warning
 
-step "System packages"
-apt-get update
-apt-get install -y git sudo curl openssl cron acl postgresql
-
-step "uv"
-command -v uv >/dev/null \
-  || curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
-
-step "Service user '$APP_USER'"
-id "$APP_USER" &>/dev/null \
-  || useradd --system --create-home --home-dir "/var/lib/$APP_USER" --shell /usr/sbin/nologin "$APP_USER"
-
-step "Shared checkout (group '$DEV_GROUP')"
-if ! getent group "$DEV_GROUP" >/dev/null; then
-  # The real server gets the group from DTU's directory; only a test machine may create it.
-  [[ -n $TEST_MODE ]] || { echo "The group '$DEV_GROUP' doesn't exist on this server." >&2; exit 1; }
-  groupadd "$DEV_GROUP"
-fi
-# Members of the group can change the checkout and run git in it; the app (pis, not a member)
-# can only read it. The default ACL gives files created later, by anyone, the same group rights.
-chown -R root:"$DEV_GROUP" "$APP_DIR"
-setfacl -R -m g::rwX -m d:g::rwX -m o::rX -m d:o::rX "$APP_DIR"
-find "$APP_DIR" -type d -exec chmod g+s {} +
-git config core.sharedRepository group
-# git refuses to work in a repository owned by someone else unless it is marked safe.
-git config --system --get-all safe.directory | grep -qxF "$APP_DIR" \
-  || git config --system --add safe.directory "$APP_DIR"
-
-step "PostgreSQL database"
-# apt doesn't start services everywhere (e.g. Docker images), so make sure PostgreSQL runs.
-systemctl enable --now postgresql
-psql_admin() { sudo -u postgres psql -v ON_ERROR_STOP=1 -qtAc "$1"; }
-# pis connects over the local socket as itself (peer authentication), so no password is needed.
-[[ $(psql_admin "SELECT 1 FROM pg_roles WHERE rolname = '$APP_USER'") == 1 ]] \
-  || sudo -u postgres createuser "$APP_USER"
-[[ $(psql_admin "SELECT 1 FROM pg_database WHERE datname = 'pis_survey'") == 1 ]] \
-  || sudo -u postgres createdb --owner="$APP_USER" pis_survey
-# Processed tables from the notebooks live here, apart from the tables Django manages.
-sudo -u "$APP_USER" psql -v ON_ERROR_STOP=1 -qd pis_survey -c "CREATE SCHEMA IF NOT EXISTS analysis"
-
-step "Notebook access for the '$DEV_GROUP' group"
-deploy/notebook-access.sh
-
-step "Settings (backend/.env)"
-ENV_FILE=backend/.env
-if [[ -f $ENV_FILE ]]; then
-  echo "Keeping the existing $ENV_FILE."
-else
-  read -rsp "Supporter password (the daily code): " SURVEY_PASSWORD; echo
-  install -m 640 -o root -g "$APP_USER" /dev/null "$ENV_FILE"
-  cat > "$ENV_FILE" <<EOF
-SECRET_KEY=$(openssl rand -hex 32)
-ALLOWED_HOSTS=$DOMAIN
-FRONTEND_ORIGINS=$URL
-SURVEY_PASSWORD=$SURVEY_PASSWORD
-DATABASE_NAME=pis_survey
-EOF
-  # No nginx in front in test mode: let the browser reach gunicorn directly (port 2810).
-  [[ -z $TEST_MODE ]] || printf 'DEBUG=1\nPIS_BIND=0.0.0.0:2810\n' >> "$ENV_FILE"
-fi
-# pis reads the settings but can't change them. They hold the secret key and the password,
-# so the developers' group gets no access (setfacl -b drops the ACL from the step above).
-setfacl -b "$ENV_FILE"
-chown root:"$APP_USER" "$ENV_FILE"
-chmod 640 "$ENV_FILE"
-
-step "Python dependencies"
-sync_deps
+step "System packages";                  install_packages
+step "uv";                               install_uv
+step "Service user '$APP_USER'";         create_app_user
+step "Shared checkout (group '$DEV_GROUP')"; share_checkout
+step "PostgreSQL database";              setup_database
+step "PostgreSQL password logins (PAM)"; setup_pam_auth
+step "Settings (backend/.env)";          write_env_file
+step "Python dependencies";              sync_deps
 
 step "Database and static files"
 manage_as "$APP_USER" migrate
 manage_as root collectstatic --no-input
 
-step "Backups (daily at 03:00)"
-# Root-only, so a compromised app (running as pis) can't delete or change the backups.
-install -d -m 700 -o root -g root /var/backups/pis-survey
-echo "0 3 * * * root $APP_DIR/deploy/backup.sh" > /etc/cron.d/pis-survey
-# apt doesn't start services everywhere (e.g. Docker images), so make sure cron runs.
-systemctl enable --now cron
+# After migrate, so the rights cover Django's tables.
+step "Database rights (deploy/db-permissions.sql)"; apply_db_permissions
+step "Notebook access for the '$DEV_GROUP' group";  sync_db_users
+
+step "Backups (cron: $BACKUP_SCHEDULE)"; install_backup_cron
 
 step "gunicorn service"
 install_service

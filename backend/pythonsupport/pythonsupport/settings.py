@@ -42,11 +42,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'surveryBackend',
+    'survey',
 ]
 
 MIDDLEWARE = [
-    'surveryBackend.cors.cors_middleware',
+    'survey.cors.cors_middleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

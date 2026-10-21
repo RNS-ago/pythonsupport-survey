@@ -28,7 +28,7 @@ This backend replaces all of that with one codebase:
 | SharePoint list | The `SatisfactionSurveyResponse` table in our own database |
 | Browsing the SharePoint list | The Django admin at `/admin/` |
 | Form sharing settings | A shared survey password and one-time links |
-| CSV export from SharePoint | Direct database access; old data imported with `import_legacy_csv` |
+| CSV export from SharePoint | Direct database access; old data loaded into the `static_data` schema (see [Data analysis](../docs/data-analysis.md#old-data)) |
 
 **We control the data.** Responses stay in a database on a server we choose.
 Nothing is sent to a third party, backups are a file copy, and deleting a
@@ -58,7 +58,7 @@ request instead of clicked together in a flow editor.
   records that building and stays valid for 1-365 days.
 - `/admin/`: the Django admin, for staff accounts.
 
-The code lives in `pythonsupport/surveryBackend/`; the project settings are in
+The code lives in `pythonsupport/survey/`; the project settings are in
 `pythonsupport/pythonsupport/settings.py`.
 
 ## Development and deployment
@@ -81,14 +81,3 @@ uv run --env-file ../.env python manage.py migrate
 
 Commit the generated migration together with the model change.
 
-### Importing the old data
-
-The old SharePoint export can be imported once per database. The CSV contains
-student numbers, so it is git-ignored; never commit it.
-
-```sh
-uv run --env-file ../.env python manage.py import_legacy_csv ../Raw_customer_entries.csv --dry-run
-uv run --env-file ../.env python manage.py import_legacy_csv ../Raw_customer_entries.csv
-```
-
-The dry run reports skipped rows and blanked course names without saving.

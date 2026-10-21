@@ -1,4 +1,5 @@
-# Installed to /etc/systemd/system/ by setup.sh and update.sh.
+# Installed to /etc/systemd/system/ by setup.sh and manage.sh update.
+# The paths, user and port must match deploy/lib/common.sh (APP_DIR, APP_USER, PORT).
 [Unit]
 Description=DTU Python Support survey backend (gunicorn)
 After=network.target

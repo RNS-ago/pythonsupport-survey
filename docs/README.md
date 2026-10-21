@@ -18,7 +18,6 @@
   - [Before you start](deployment.md#before-you-start)
   - [First-time setup](deployment.md#first-time-setup)
   - [Trying the setup locally (test mode)](deployment.md#trying-the-setup-locally-test-mode)
-  - [Importing the old data](deployment.md#importing-the-old-data)
   - [Updating](deployment.md#updating)
 - [nginx](nginx.md)
   - [Configuration](nginx.md#configuration)
@@ -32,6 +31,7 @@
 - [Data analysis](data-analysis.md)
   - [Database logins](data-analysis.md#database-logins)
   - [Connecting from a notebook](data-analysis.md#connecting-from-a-notebook)
+  - [Old data](data-analysis.md#old-data)
 
 Component notes:
 

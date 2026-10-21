@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.urls import path, re_path
 from django.views.static import serve
 
-from surveryBackend import views
+from survey import views
 
 # repo/frontend, next to repo/backend
 FRONTEND_DIR = settings.BASE_DIR.parent.parent / 'frontend'

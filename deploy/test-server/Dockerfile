@@ -1,4 +1,4 @@
-# A throwaway "fresh Ubuntu server" for running deploy/setup.sh and update.sh by hand.
+# A throwaway "fresh Ubuntu server" for running deploy/setup.sh and manage.sh by hand.
 # systemd runs as PID 1, so systemctl, journalctl and cron behave like on the real machine.
 FROM ubuntu:24.04
 

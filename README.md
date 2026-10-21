@@ -54,7 +54,7 @@ Open <http://localhost:8000/> and log in with `devpassword`.
   ```
 
 - To deploy, merge to `main`, then on the server run
-  `sudo /srv/pythonsupport-survey/deploy/update.sh`
+  `sudo /srv/pythonsupport-survey/deploy/manage.sh update`
   (see [Updating](docs/deployment.md#updating)).
 
 More detail in [Development](docs/development.md).
