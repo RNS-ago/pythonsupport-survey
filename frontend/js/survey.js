@@ -1,4 +1,4 @@
-import { endpoint, STORAGE, state, linkToken, isQrLink, qpWD } from './config.js';
+import { endpoint, state, linkToken, isQrLink, qpWD } from './config.js';
 import { getSavedKey, isAuthValid, clearSavedKey, isCredentialFault } from './auth.js';
 import { showError, friendlyError, errorText } from './errors.js';
 import { syncFabVisibility, isKiosk } from './kiosk.js';
@@ -325,7 +325,7 @@ export function wireSurveyForm(){
     const buttonArray = document.getElementById("course_button_array");
     buttonArray.innerHTML = '';
     loadCourseSchedule();
-    const preferWD = qpWD || (localStorage.getItem(STORAGE.WORKSHOP) === 'true');
+    const preferWD = qpWD || !!document.getElementById('workshopDayToggle')?.checked;
     document.getElementById('workshop_yes').checked = !!preferWD;
     document.getElementById('workshop_no').checked  = !preferWD;
     studentNumInput.value = '';

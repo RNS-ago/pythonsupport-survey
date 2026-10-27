@@ -21,7 +21,7 @@ The server runs two processes:
   [Architecture](structure.md#request-flow)).
 - **PostgreSQL**: the database `pis_survey`, owned by the database user `pis`, backed up
   daily. Django's tables are in the `public` schema; processed tables from the notebooks go
-  in the `analysis` schema (see [Data analysis](data-analysis.md)).
+  in the `processed_data` schema (see [Data analysis](data-analysis.md)).
 
 The code lives in one checkout at `/srv/pythonsupport-survey`, and the scripts and config
 files expect that path. The data lives in PostgreSQL, so re-cloning or cleaning the checkout

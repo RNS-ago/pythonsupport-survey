@@ -1,5 +1,6 @@
 import { csrfEndpoint, STORAGE } from './config.js';
 
+// A refresh resets everything except the login, the failsafe queue and offline mode.
 try {
   const keep = [STORAGE.AUTH, STORAGE.FAILSAFE, STORAGE.OFFLINE].map(k => [k, localStorage.getItem(k)]);
   localStorage.clear();

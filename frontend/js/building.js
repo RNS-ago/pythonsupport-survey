@@ -1,4 +1,4 @@
-import { tokenEndpoint, qrEndpoint, STORAGE, state, saveSelectedBuilding, linkToken, isQrLink } from './config.js';
+import { tokenEndpoint, qrEndpoint, state, linkToken, isQrLink, qpWD } from './config.js';
 import { getSavedKey } from './auth.js';
 import { showError, errorText } from './errors.js';
 import { isKiosk, syncFabVisibility } from './kiosk.js';
@@ -39,8 +39,8 @@ export function showBuildingSelection(){
 export function showSurveyForm(){
   showPage('survey');
 
-  // keep the workshop preset logic
-  const preferWD = (localStorage.getItem('workshopDay') === 'true');
+  // preset the workshop answer from the link (?wd=1) or the supporter's toggle
+  const preferWD = qpWD || !!document.getElementById('workshopDayToggle')?.checked;
   const yes = document.getElementById('workshop_yes');
   const no  = document.getElementById('workshop_no');
   if (yes && no) { yes.checked = !!preferWD; no.checked = !preferWD; }
@@ -60,7 +60,7 @@ export function switchToSurvey(e){
   closeSidebar();
 }
 
-export function selectBuilding(b){ if (isKiosk()) return; saveSelectedBuilding(b); showSurveyForm(); }
+export function selectBuilding(b){ if (isKiosk()) return; state.selectedBuilding = b; showSurveyForm(); }
 export function selectCustomBuilding(){
   if (isKiosk()) return;
   const input = document.getElementById('customBuilding');
@@ -71,13 +71,6 @@ export function selectCustomBuilding(){
 export function handleEnterKey(e){ if (e.key === 'Enter') selectCustomBuilding(); }
 
 // Admin controls
-function wireWorkshopToggle(){
-  const t = document.getElementById('workshopDayToggle');
-  if (!t) return;
-  try { t.checked = localStorage.getItem(STORAGE.WORKSHOP) === 'true'; } catch {}
-  t.addEventListener('change', ()=> { try { localStorage.setItem(STORAGE.WORKSHOP, String(t.checked)); } catch {} });
-}
-
 async function generateOneTimeLink() {
   if (isKiosk()) return;
   try {
@@ -118,7 +111,7 @@ function wireQRModal(){
   function open() {
     if (isKiosk()) return;
     qrBuildingInp.value = (state.selectedBuilding ?? '').toString();
-    try { qrWD.checked = (localStorage.getItem(STORAGE.WORKSHOP) === 'true'); } catch {}
+    qrWD.checked = !!document.getElementById('workshopDayToggle')?.checked;
     qrResult.classList.add('hidden');
     if (inlineErr) { inlineErr.textContent=''; inlineErr.classList.add('hidden'); }
     modal.classList.remove('hidden');
@@ -190,7 +183,6 @@ export function wireBuildingPage(){
   window.showBuildingSelection = showBuildingSelection;
 
   document.getElementById('btnGenerateLink')?.addEventListener('click', generateOneTimeLink);
-  wireWorkshopToggle();
   wireQRModal();
 
   // sidebar events

@@ -64,3 +64,4 @@ temp/
 
 # Collected Django static files (built by collectstatic on the server)
 backend/staticfiles/
+graphify-out/
