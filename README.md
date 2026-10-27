@@ -44,6 +44,7 @@ Open <http://localhost:8000/> and log in with `devpassword`.
 | [`frontend/`](frontend/) | Static HTML, CSS and JavaScript modules. No build step. |
 | [`backend/`](backend/) | Django app with PostgreSQL on the server, SQLite locally. |
 | [`deploy/`](deploy/) | Scripts and config for setting up and updating the server. |
+| [`notebooks/`](notebooks/) | Jupyter notebooks for data analysis, with their own uv project. |
 | [`docs/`](docs/) | Project documentation. |
 
 - Django serves the frontend in development, so changes to `frontend/` show up on reload.

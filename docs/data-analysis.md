@@ -2,9 +2,9 @@
 
 [Docs home](README.md) · [Architecture](structure.md) · [Development](development.md) · [Deployment](deployment.md) · [nginx](nginx.md) · [Operations](operations.md) · [Data analysis](data-analysis.md) · [Project README](../README.md)
 
-Jupyter notebooks run on your own machine and read the live database through an SSH tunnel.
-PostgreSQL stays closed to the network: the tunnel forwards a local port to its socket on
-the server, and PostgreSQL sees you as your own account on the server.
+Jupyter notebooks run on your own machine and connect to the live database at
+`psqdb.compute.dtu.dk:5432` over TLS, logging in with your DTU account and password.
+Notebooks running on the server itself, such as a pipeline, use PostgreSQL's local socket.
 
 - [Database logins](#database-logins)
 - [Connecting from a notebook](#connecting-from-a-notebook)
@@ -50,19 +50,26 @@ sudo -u postgres psql -d pis_survey -c 'DROP ROLE "<account>"'   # to remove the
 
 ## Connecting from a notebook
 
-Open the tunnel (leave it running while you work):
+The notebooks have their own [uv](https://docs.astral.sh/uv/) project in `notebooks/`, separate
+from the backend's. Set it up and start Jupyter from there:
 
 ```sh
-ssh -N -L 5432:/var/run/postgresql/.s.PGSQL.5432 <your account>@psqdb.compute.dtu.dk
+cd notebooks
+uv sync
+uv run --with jupyter jupyter lab
 ```
 
-Then, in a notebook (needs `pandas`, `sqlalchemy` and `psycopg[binary]`):
+To add a package, run `uv add <package>` in `notebooks/` and commit `pyproject.toml` and
+`uv.lock` with it. `uv sync` also installs `notebooks/src/pis_lib/`, code shared by the notebooks,
+so any notebook can import it as `pis_lib`; changes to it show up after restarting the kernel.
+
+Then, in a notebook:
 
 ```python
 import pandas as pd
-from sqlalchemy import create_engine
+from pis_lib.connect import get_pg_engine
 
-db = create_engine("postgresql+psycopg://<your account>@localhost:5432/pis_survey")
+db = get_pg_engine()  # or get_pg_engine("<your account>") if your local account is named differently
 
 # Processing: raw data in, a redacted table out, in processed_data.
 raw = pd.read_sql("SELECT * FROM survey_satisfactionsurveyresponse", db)
@@ -72,6 +79,11 @@ processed.to_sql("responses", db, schema="processed_data", if_exists="replace", 
 # Visualization: only the processed table.
 df = pd.read_sql('SELECT * FROM processed_data.responses', db)
 ```
+
+On your machine, `get_pg_engine()` ([`notebooks/src/pis_lib/connect.py`](../notebooks/src/pis_lib/connect.py)) takes
+the password from `PGPASSWORD`, or asks for it. On the server, such as a pipeline running a
+notebook there, it uses PostgreSQL's local socket instead and needs no password; it logs in as
+the account running the notebook.
 
 Django keeps its tables in `public`, the default schema, and its migrations may change
 anything there; analysts can only read its `survey_*` tables.

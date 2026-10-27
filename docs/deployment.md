@@ -27,9 +27,9 @@ The code lives in one checkout at `/srv/pythonsupport-survey`, and the scripts a
 files expect that path. The data lives in PostgreSQL, so re-cloning or cleaning the checkout
 can never delete it.
 
-Django and the notebooks connect over PostgreSQL's local socket, as the operating-system user
-they run as (peer authentication), so there are no database passwords. PostgreSQL does not
-listen on the network.
+Django, and notebooks running on the server, connect over PostgreSQL's local socket, as the
+operating-system user they run as (peer authentication), so they need no database password.
+Notebooks elsewhere connect through nginx over TLS and log in with their DTU password (PAM).
 
 | File in `deploy/` | Purpose |
 | --- | --- |
