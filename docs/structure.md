@@ -68,7 +68,7 @@ instead of a session. The backend decides the building from the token.
 | `POST /api/responses/` | logged-in supporter, or a student with a link token | Save a survey response |
 | `POST /api/problem-logs/` | logged-in supporter | Save a problem log |
 | `POST /api/links/` | logged-in supporter | Create a one-time link |
-| `POST /api/qr-codes/` | logged-in supporter | Create a reusable QR link |
+| `POST /api/qr-codes/` | logged-in supporter | Create a reusable QR link and its QR image |
 | `/admin/` | Django staff accounts | Browse and export the data |
 
 The Analytics page in the frontend embeds a Power BI report; it does not read from this

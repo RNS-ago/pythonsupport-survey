@@ -75,7 +75,12 @@ class SubmitResponseTests(TestCase):
         self.assertIn('valid_days', issue({'building_number': 358, 'valid_days': 0}).json()['errors'])
         self.assertIn('building_number', issue({'building_number': 991, 'valid_days': 7}).json()['errors'])
 
-        token = issue({'building_number': 358, 'valid_days': 7}).json()['token']
+        issued = issue({'building_number': 358, 'valid_days': 7}).json()
+        token = issued['token']
+        self.assertEqual(issued['url'], f'http://testserver/?t={token}')
+        self.assertTrue(issued['qr'].startswith('data:image/png;base64,'))
+        workshop = issue({'building_number': 358, 'valid_days': 7, 'workshop_day': True}).json()
+        self.assertEqual(workshop['url'], f"http://testserver/?t={workshop['token']}&wd=1")
         link = SurveyLink.objects.get(token=token)
         self.assertAlmostEqual(link.expires_at, timezone.now() + timedelta(days=7), delta=timedelta(minutes=1))
 
@@ -89,19 +94,6 @@ class SubmitResponseTests(TestCase):
         link.expires_at = timezone.now()
         link.save()
         self.assertEqual(use().status_code, 403)
-
-    @override_settings(FRONTEND_ORIGINS=['http://localhost:5500'])
-    def test_frontend_origin_gets_cors_headers(self):
-        origin = {'Origin': 'http://localhost:5500'}
-        preflight = self.client.options('/api/responses/', headers=origin)
-        self.assertEqual(preflight.status_code, 200)
-        self.assertEqual(preflight['Access-Control-Allow-Origin'], 'http://localhost:5500')
-        # CSRF rejections must be readable too, or the frontend sees a network error.
-        rejected = self.client.post('/api/responses/', VALID, content_type='application/json', headers=origin)
-        self.assertEqual(rejected.status_code, 403)
-        self.assertEqual(rejected['Access-Control-Allow-Credentials'], 'true')
-        other = self.client.options('/api/responses/', headers={'Origin': 'https://evil.example'})
-        self.assertNotIn('Access-Control-Allow-Origin', other)
 
     def test_valid_submission_is_saved(self):
         response = self.post(VALID)

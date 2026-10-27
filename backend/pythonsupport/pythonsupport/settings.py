@@ -29,9 +29,6 @@ SURVEY_PASSWORD = os.environ['SURVEY_PASSWORD']
 # The password unlocks the session, so this is how often it must be re-entered.
 SESSION_COOKIE_AGE = 60 * 60 * 24
 
-FRONTEND_ORIGINS = os.environ['FRONTEND_ORIGINS'].split()
-CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
-
 
 # Application definition
 
@@ -46,7 +43,6 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'survey.cors.cors_middleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

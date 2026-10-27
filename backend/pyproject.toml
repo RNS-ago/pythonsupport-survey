@@ -8,4 +8,5 @@ dependencies = [
     "django>=6.1.1",
     "gunicorn>=26.2.0",
     "psycopg[binary]>=3.3.6",
+    "segno>=1.6.6",
 ]

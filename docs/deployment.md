@@ -82,8 +82,8 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
    3. Create the PostgreSQL user `pis` and the database `pis_survey`, and set up password
       logins through PAM (SSSD).
    4. Ask for the supporter password and write `backend/.env` with a random
-      `SECRET_KEY`, `ALLOWED_HOSTS`, `FRONTEND_ORIGINS` and
-      `DATABASE_NAME=pis_survey`. Root owns it; `pis` can only read it.
+      `SECRET_KEY`, `ALLOWED_HOSTS` and `DATABASE_NAME=pis_survey`. Root owns it; `pis`
+      can only read it.
    5. Install the Python dependencies, create Django's tables, and collect the admin's
       static files.
    6. Apply `deploy/db-permissions.sql` (the `processed_data`, `static_data` and

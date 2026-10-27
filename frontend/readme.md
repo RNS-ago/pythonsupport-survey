@@ -9,10 +9,10 @@ A web-based student satisfaction survey and internal problem log for DTU Python 
 ```
 ├── index.html              # Main survey application
 ├── assets/                 # Satisfaction rating images (face1-5.png)
-├── css/                    # Stylesheets (main, sidebar, modal, survey, compact, kiosk)
+├── css/                    # Stylesheets (main, kiosk, course-autocompleat)
 ├── js/                     # JavaScript modules (app, auth, building, config, errors, failsafe, kiosk, problem-log, survey, viewport)
 ├── partials/               # HTML templates (analytics, building-selection, modals, mode-selection, problem-log, sidebar, survey-form)
-├── data/courses.csv        # Course data for autocomplete
+├── data/courses.json       # Course data for autocomplete
 └── readme.md               # Documentation
 ```
 
@@ -25,7 +25,7 @@ A web-based student satisfaction survey and internal problem log for DTU Python 
 - QR code generation for static URLs
 - Student/Employee role selection
 - Satisfaction rating with visual feedback
-- Course autocomplete from CSV data
+- Course autocomplete from the course list
 - Analytics dashboard integration with PowerBI
 - Kiosk/Tablet Mode: Fullscreen locked mode for public tablet deployment
 

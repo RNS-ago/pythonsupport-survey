@@ -1,13 +1,9 @@
-import { STORAGE, linkToken } from './config.js';
+import { STORAGE, linkToken, isQrLink } from './config.js';
 import { keyboardOcclusion, isKeyboardOpen, ensureVisible, openPanelFor } from './viewport.js';
 
-// --- HARD KIOSK & WAKE LOCK SUPPORT ---
-// If true, users cannot exit via the 5-tap corner or other soft exits.
-const HARD_KIOSK = false;
-
-// Screen Wake Lock (modern browsers) + NoSleep fallback (older iOS)
+// --- WAKE LOCK SUPPORT ---
+// Screen Wake Lock API: Safari since iPadOS 16.4, Chrome since 84. Elsewhere the screen may sleep.
 let __wakeLock = null;
-let __noSleep = null;
 let __wakeHandlersBound = false;
 
 // VisualViewport keyboard offset helpers
@@ -16,19 +12,12 @@ let __kbdOpen = false;
 let __lastOcclusion = -1;
 
 async function requestWakeLock() {
+  if (!navigator.wakeLock) return;
   try {
-    if ('wakeLock' in navigator && navigator.wakeLock?.request) {
-      __wakeLock = await navigator.wakeLock.request('screen');
-      __wakeLock.addEventListener?.('release', () => {
-        if (isKiosk()) { tryReacquireWakeLockSoon(); }
-      });
-    } else {
-      if (!__noSleep) {
-        await loadNoSleepLib();
-        __noSleep = new window.NoSleep();
-      }
-      try { __noSleep.enable(); } catch {}
-    }
+    __wakeLock = await navigator.wakeLock.request('screen');
+    __wakeLock.addEventListener('release', () => {
+      if (isKiosk()) { tryReacquireWakeLockSoon(); }
+    });
   } catch {
     tryReacquireWakeLockSoon();
   }
@@ -37,23 +26,11 @@ async function requestWakeLock() {
 function releaseWakeLock() {
   try { if (__wakeLock) { __wakeLock.release?.(); } } catch {}
   __wakeLock = null;
-  try { if (__noSleep) { __noSleep.disable?.(); } } catch {}
 }
 
 function tryReacquireWakeLockSoon() {
   if (!isKiosk()) return;
   setTimeout(() => { if (isKiosk()) requestWakeLock(); }, 600);
-}
-
-function loadNoSleepLib() {
-  return new Promise((resolve) => {
-    if (window.NoSleep) return resolve();
-    const s = document.createElement('script');
-    s.src = 'https://unpkg.com/nosleep.js@0.12.0/dist/NoSleep.min.js';
-    s.onload = () => resolve();
-    s.onerror = () => resolve();
-    document.head.appendChild(s);
-  });
 }
 
 async function ensureFullscreen() {
@@ -203,10 +180,8 @@ export function wireKiosk() {
   const reset = ()=>{ taps = 0; if (timer) { clearTimeout(timer); timer = null; } };
   const handleTap = ()=>{ taps += 1; if (!timer) { timer = setTimeout(reset, 1500); } if (taps >= 5) { reset(); setKiosk(false); } };
 
-  if (!HARD_KIOSK) {
-    kioskExitBtn()?.addEventListener('click', handleTap, {passive:true});
-    kioskExitBtn()?.addEventListener('touchstart', (e)=>{ e.preventDefault(); handleTap(); }, {passive:false});
-  }
+  kioskExitBtn()?.addEventListener('click', handleTap, {passive:true});
+  kioskExitBtn()?.addEventListener('touchstart', (e)=>{ e.preventDefault(); handleTap(); }, {passive:false});
 
   // block navigation keys in kiosk
   window.addEventListener('keydown', (e)=>{
@@ -230,9 +205,6 @@ function fsChange(){
 }
 document.addEventListener('fullscreenchange', fsChange);
 document.addEventListener('webkitfullscreenchange', fsChange);
-  // Wake lock can drop on tab switches / power events
-  window.addEventListener('focus', () => { if (isKiosk()) tryReacquireWakeLockSoon(); }, {passive:true});
-
   // initial FAB visibility
   syncFabVisibility();
 }
@@ -261,8 +233,7 @@ export function syncFabVisibility() {
   if (!btn) return;
 
   // Students coming via Discord/QR (token or building in URL) never see the FAB
-  const params = new URLSearchParams(location.search);
-  const tokenMode = !!(params.get('t') || params.get('token') || params.get('b'));
+  const tokenMode = !!(linkToken || isQrLink);
 
   const sc = document.getElementById('surveyContainer'); // container that gets toggled
   const sp = document.getElementById('surveyPage');      // inner partial
@@ -271,7 +242,5 @@ export function syncFabVisibility() {
   const innerVisible     = !sp || !sp.classList.contains('hidden');
 
   const onSurvey = containerVisible && innerVisible;
-  const kioskActive = typeof isKiosk === 'function' ? isKiosk() : false;
-
-  btn.style.display = (!tokenMode && onSurvey && !kioskActive) ? '' : 'none';
+  btn.style.display = (!tokenMode && onSurvey && !isKiosk()) ? '' : 'none';
 }

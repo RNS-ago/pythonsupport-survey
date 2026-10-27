@@ -1,7 +1,9 @@
 import json
 import secrets
 from datetime import timedelta
+from urllib.parse import urlencode
 
+import segno
 from django import forms
 from django.conf import settings
 from django.db import transaction
@@ -65,6 +67,7 @@ class SupporterProblemLogForm(forms.ModelForm):
 class QrCodeForm(forms.Form):
     building_number = forms.IntegerField(min_value=0, max_value=990)  # the QR dialog's range
     valid_days = forms.IntegerField(min_value=1, max_value=365)
+    workshop_day = forms.BooleanField(required=False)  # adds wd=1, which presets "workshop: yes"
 
 
 def read_json_object(request):
@@ -79,10 +82,7 @@ def read_json_object(request):
 @csrf_exempt
 @require_POST
 def request_csrf_token(request):
-    try:
-        password = json.loads(request.body)['password']
-    except (ValueError, KeyError, TypeError):
-        password = None
+    password = (read_json_object(request) or {}).get('password')
     expected = settings.SURVEY_PASSWORD
     if not (expected and password and constant_time_compare(password, expected)):
         return JsonResponse({'error': "Wrong password."}, status=403)
@@ -98,7 +98,8 @@ def request_csrf_token(request):
 def issue_link(request):
     if not request.session.get('survey_authorized'):
         return JsonResponse({'error': NEED_PASSWORD}, status=403)
-    return create_link(ONE_TIME_LINK_LIFETIME, building_number=ONE_TIME_LINK_BUILDING, single_use=True)
+    link = create_link(ONE_TIME_LINK_LIFETIME, building_number=ONE_TIME_LINK_BUILDING, single_use=True)
+    return JsonResponse({'token': link.token}, status=201)
 
 
 @require_POST
@@ -108,17 +109,22 @@ def issue_qr_code(request):
     form = QrCodeForm(read_json_object(request) or {})
     if not form.is_valid():
         return JsonResponse({'errors': form.errors.get_json_data()}, status=400)
-    return create_link(
+    link = create_link(
         timedelta(days=form.cleaned_data['valid_days']),
         building_number=str(form.cleaned_data['building_number']), single_use=False,
     )
+    query = {'t': link.token, **({'wd': 1} if form.cleaned_data['workshop_day'] else {})}
+    # The survey page is the site's root; behind nginx this is https://<domain>/?t=...
+    url = request.build_absolute_uri('/?' + urlencode(query))
+    # make_qr, not make: never a Micro QR code, which not every phone camera reads.
+    qr = segno.make_qr(url, error='m').png_data_uri(scale=8, border=2)
+    return JsonResponse({'token': link.token, 'url': url, 'qr': qr}, status=201)
 
 
 def create_link(lifetime, **fields):
     now = timezone.now()
     SurveyLink.objects.filter(expires_at__lte=now).delete()  # dead links are never needed again
-    link = SurveyLink.objects.create(token=secrets.token_urlsafe(), expires_at=now + lifetime, **fields)
-    return JsonResponse({'token': link.token}, status=201)
+    return SurveyLink.objects.create(token=secrets.token_urlsafe(), expires_at=now + lifetime, **fields)
 
 
 # Exempt because a link's student has no session or CSRF token; the link token
@@ -169,11 +175,8 @@ def submit_supporter_problem(request):
     if not request.session.get('survey_authorized'):
         return JsonResponse({'error': NEED_PASSWORD}, status=403)
 
-    try:
-        payload = json.loads(request.body)
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return JsonResponse({'error': "Request body must be valid JSON."}, status=400)
-    if not isinstance(payload, dict):
+    payload = read_json_object(request)
+    if payload is None:
         return JsonResponse({'error': "Request body must be a JSON object."}, status=400)
 
     problems = payload.get('problems', [])

@@ -20,7 +20,6 @@ DEBUG=1
 SECRET_KEY=dev
 ALLOWED_HOSTS=localhost 127.0.0.1
 SURVEY_PASSWORD=devpassword
-FRONTEND_ORIGINS=http://localhost:8000
 EOF
 
 cd pythonsupport

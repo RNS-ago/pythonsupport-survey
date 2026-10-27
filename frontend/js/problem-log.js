@@ -1,5 +1,6 @@
 import { problemLogEndpoint } from './config.js';
 import { getSavedKey, clearSavedKey, isCredentialFault, showLogin } from './auth.js';
+import { errorText } from './errors.js';
 
 export function wireProblemLog() {
   const form = document.getElementById('problemLogForm');
@@ -38,13 +39,7 @@ export function wireProblemLog() {
         say('Your supporter session has expired. Log in and submit again.');
         return;
       }
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        const fieldErrors = data.errors
-          ? Object.values(data.errors).flat().map(err => err.message || err).join(' ')
-          : '';
-        throw new Error(data.error || fieldErrors || `Request failed (${resp.status}).`);
-      }
+      if (!resp.ok) throw new Error(await errorText(resp) || `Request failed (${resp.status}).`);
       form.reset();
       success.classList.remove('hidden');
     } catch (err) {

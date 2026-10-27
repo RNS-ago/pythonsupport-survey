@@ -20,7 +20,7 @@ wheels/
 *.sqlite3
 
 # Backend data exports (contain student numbers).
-# Scoped to backend/ so frontend/data/courses.csv stays tracked.
+# Scoped to backend/ so CSV files elsewhere stay tracked.
 backend/**/*.csv
 
 # Notebook data: old sources with student names and numbers, and dashboards with embedded rows.

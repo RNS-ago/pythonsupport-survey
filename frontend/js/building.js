@@ -1,6 +1,6 @@
-import { endpoint, tokenEndpoint, qrEndpoint, STORAGE, state, saveSelectedBuilding, qpWD, linkToken } from './config.js';
+import { tokenEndpoint, qrEndpoint, STORAGE, state, saveSelectedBuilding, linkToken, isQrLink } from './config.js';
 import { getSavedKey } from './auth.js';
-import { showError } from './errors.js';
+import { showError, errorText } from './errors.js';
 import { isKiosk, syncFabVisibility } from './kiosk.js';
 
 const overlay = () => document.getElementById('sidebarOverlay');
@@ -48,7 +48,7 @@ export function showSurveyForm(){
 
 export function switchToAnalytics(e){
   if (e) e.preventDefault();
-  if (isKiosk() || (new URLSearchParams(location.search).get('t') || new URLSearchParams(location.search).get('token'))) return;
+  if (isKiosk() || linkToken) return;
   showPage('analytics');
   closeSidebar();
 }
@@ -87,14 +87,13 @@ async function generateOneTimeLink() {
       headers: { 'X-CSRFToken': getSavedKey()[1] || '' },
     });
     if (!resp.ok) {
-      const txt = await resp.text().catch(()=> '');
-      showError('Could not generate link. ' + (txt || ''), resp.status);
+      showError('Could not generate link. ' + await errorText(resp), resp.status);
       return;
     }
-    const data = await resp.json().catch(()=>({}));
+    const { token } = await resp.json();
     const baseUrl = window.location.origin + window.location.pathname;
     const wd = (document.getElementById('workshopDayToggle')?.checked) ? '&wd=1' : '';
-    const url = data.url || data.oneTimeUrl || `${baseUrl}?token=${encodeURIComponent(data.token)}${wd}`;
+    const url = `${baseUrl}?token=${encodeURIComponent(token)}${wd}`;
     try { await navigator.clipboard.writeText(url); } catch {}
     alert('Discord link copied to clipboard:\n' + url);
   } catch (e) {
@@ -108,7 +107,6 @@ function wireQRModal(){
   const qrCreate  = document.getElementById('qrCreate');
   const qrClose   = document.getElementById('qrClose');
   const qrCopy    = document.getElementById('qrCopy');
-  const qrCanvas  = document.getElementById('qrCanvas');
   const qrImg     = document.getElementById('qrImg');
   const qrLinkInp = document.getElementById('qrLink');
   const qrResult  = document.getElementById('qrResult');
@@ -121,8 +119,7 @@ function wireQRModal(){
     if (isKiosk()) return;
     qrBuildingInp.value = (state.selectedBuilding ?? '').toString();
     try { qrWD.checked = (localStorage.getItem(STORAGE.WORKSHOP) === 'true'); } catch {}
-    if (qrImg) { qrImg.src=''; qrImg.classList.add('hidden'); }
-    qrCanvas.classList.remove('hidden'); qrResult.classList.add('hidden');
+    qrResult.classList.add('hidden');
     if (inlineErr) { inlineErr.textContent=''; inlineErr.classList.add('hidden'); }
     modal.classList.remove('hidden');
   }
@@ -154,22 +151,13 @@ function wireQRModal(){
     const resp = await fetch(qrEndpoint, {
       method:'POST', credentials:'include',
       headers:{ 'Content-Type':'application/json', 'X-CSRFToken': getSavedKey()[1] || '' },
-      body: JSON.stringify({ building_number: num, valid_days: days })
+      body: JSON.stringify({ building_number: num, valid_days: days, workshop_day: qrWD.checked })
     });
-    if (!resp.ok){ const txt = await resp.text().catch(()=> ''); return showError('Could not create QR. ' + (txt||''), resp.status); }
-    const { token } = await resp.json();
-    // Same shape as a one-time link; the backend knows the building and whether the token is reusable.
-    const url = `${location.origin}${location.pathname}?t=${encodeURIComponent(token)}${qrWD.checked ? '&wd=1' : ''}`;
+    if (!resp.ok) return showError('Could not create QR. ' + await errorText(resp), resp.status);
+    // The backend builds the link and its QR image (a PNG data URI).
+    const { url, qr } = await resp.json();
     qrLinkInp.value = url;
-    if (window.QRCode?.toCanvas){
-      const ctx = qrCanvas.getContext('2d'); ctx.clearRect(0,0,qrCanvas.width,qrCanvas.height);
-      await QRCode.toCanvas(qrCanvas, url, { width: 280, margin: 2 });
-      qrCanvas.classList.remove('hidden'); qrImg.classList.add('hidden');
-    } else {
-      const e = encodeURIComponent(url);
-      qrCanvas.classList.add('hidden'); qrImg.classList.remove('hidden');
-      qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${e}`;
-    }
+    qrImg.src = qr;
     qrResult.classList.remove('hidden');
   }
   qrCreate?.addEventListener('click', create);
@@ -178,7 +166,7 @@ function wireQRModal(){
 }
 
 export function applySidebarVisibility(){
-  const hide = isKiosk() || !!linkToken || !!(new URLSearchParams(location.search).get('b'));
+  const hide = isKiosk() || !!linkToken || isQrLink;
   if (sidebar()) {
     if (hide){ sidebar().hidden=true; sidebar().style.display='none'; sidebar().setAttribute('aria-hidden','true'); sidebar().setAttribute('inert',''); }
     else { sidebar().hidden=false; sidebar().style.display=''; sidebar().removeAttribute('aria-hidden'); sidebar().removeAttribute('inert'); }

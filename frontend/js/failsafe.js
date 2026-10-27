@@ -132,8 +132,9 @@ export async function retryPending() {
 
 /* --------------------------------------------------------------------- UI --- */
 
-const listeners = new Set();
-function notify() { const n = pendingCount(); listeners.forEach(fn => { try { fn(n); } catch {} }); }
+// Set by wireFailsafe: shows the number of queued responses.
+let showPending = () => {};
+function notify() { try { showPending(pendingCount()); } catch {} }
 
 export function wireFailsafe() {
   const saveBtn = document.getElementById('saveBackupBtn');
@@ -158,7 +159,7 @@ export function wireFailsafe() {
       if (tabCnt) tabCnt.textContent = String(n);
     }
   };
-  listeners.add(render);
+  showPending = render;
   render(pendingCount());
 
   window.addEventListener('online', () => { retryPending(); });

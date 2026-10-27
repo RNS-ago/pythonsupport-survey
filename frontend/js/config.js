@@ -1,11 +1,10 @@
 // Endpoints (change here only)
 // Django backend serves this frontend, so API calls go to the same origin.
-const apiBase = "";
-export const endpoint       = `${apiBase}/api/responses/`;
-export const csrfEndpoint   = `${apiBase}/api/csrf/`;
-export const tokenEndpoint  = `${apiBase}/api/links/`;
-export const qrEndpoint     = `${apiBase}/api/qr-codes/`;
-export const problemLogEndpoint = `${apiBase}/api/problem-logs/`;
+export const endpoint       = '/api/responses/';
+export const csrfEndpoint   = '/api/csrf/';
+export const tokenEndpoint  = '/api/links/';
+export const qrEndpoint     = '/api/qr-codes/';
+export const problemLogEndpoint = '/api/problem-logs/';
 
 export const STORAGE = {
   AUTH: 'surveySupportAuth',
@@ -21,7 +20,6 @@ export const linkToken = params.get('t') || params.get('token') || null;
 export const qpBuilding = params.get('b');
 export const qpWD = params.get('wd') === '1';
 export const isQrLink = params.has('b');
-export const hasOneTimeToken = !!linkToken;
 
 // mutable state shared by modules
 export const state = {

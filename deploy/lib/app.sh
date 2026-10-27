@@ -1,6 +1,6 @@
 # The Django app: settings, dependencies, manage.py and the gunicorn service.
 
-# Writes backend/.env once (needs DOMAIN, URL and TEST_MODE from setup.sh); keeps an existing one.
+# Writes backend/.env once (needs DOMAIN and TEST_MODE from setup.sh); keeps an existing one.
 write_env_file() {
   local env_file=backend/.env
   if [[ -f $env_file ]]; then
@@ -12,7 +12,6 @@ write_env_file() {
     cat > "$env_file" <<EOF
 SECRET_KEY=$(openssl rand -hex 32)
 ALLOWED_HOSTS=$DOMAIN
-FRONTEND_ORIGINS=$URL
 SURVEY_PASSWORD=$password
 DATABASE_NAME=$DB
 EOF

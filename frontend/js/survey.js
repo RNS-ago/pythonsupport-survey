@@ -1,7 +1,7 @@
 import { endpoint, STORAGE, state, linkToken, isQrLink, qpWD } from './config.js';
 import { getSavedKey, isAuthValid, clearSavedKey, isCredentialFault } from './auth.js';
-import { showError, friendlyError } from './errors.js';
-import { syncFabVisibility } from './kiosk.js';
+import { showError, friendlyError, errorText } from './errors.js';
+import { syncFabVisibility, isKiosk } from './kiosk.js';
 import { visualViewportBox, ensureVisible } from './viewport.js';
 import { saveFailedSubmission } from './failsafe.js';
 
@@ -21,40 +21,11 @@ function setupCourseAutocomplete() {
   
   (async () => {
     try {
-      const res = await fetch('./data/courses.csv', { cache: 'no-store' });
+      const res = await fetch('./data/courses.json', { cache: 'no-store' });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-
-      const lines = text.split(/\r?\n/);
-      const records = [];
-      let buf = '', inQuotes = false;
-      for (const line of lines) {
-        const q = (line.match(/"/g) || []).length;
-        if (!inQuotes) {
-          buf = line;
-          if (q % 2 === 1) { inQuotes = true; continue; }
-        } else {
-          buf += '\n' + line;
-          if (q % 2 === 1) inQuotes = false;
-          if (inQuotes) continue;
-        }
-        records.push(buf);
-      }
-      if (records.length && /course|code/i.test(records[0])) records.shift();
-
-      const out = [];
-      for (const rec of records) {
-        const idx = rec.indexOf(',');
-        if (idx === -1) continue;
-        const code = rec.slice(0, idx).trim();
-        const name = rec.slice(idx + 1)
-          .replace(/\r/g, '').replace(/CR$/, '').replace(/^"+|"+$/g, '').trim();
-        if (!code || !name) continue;
-        out.push(`${code} - ${name}`);
-      }
-      courses = out;
+      courses = (await res.json()).map(c => `${c.number} - ${c.name}`);
     } catch (err) {
-      console.error('courses.csv load failed:', err);
+      console.error('courses.json load failed:', err);
     }
   })();
 
@@ -191,52 +162,48 @@ function setupCourseAutocomplete() {
 }
 
 
-function loadCourseSchedule() {
-  (async () => {
-    try {
-      const res = await fetch('./data/courseSchedule.json', { cache: 'no-store' });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+async function loadCourseSchedule() {
+  try {
+    const res = await fetch('./data/courseSchedule.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-      const courseSchedule = await res.json();
+    const courseSchedule = await res.json();
 
-      let dateTime = new Date();
-      let dayOfTheWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dateTime.getDay()];
-      let time = dateTime.getHours();
-      let timeSlot = (time >= 12) ? "afternoon" : "morning";
+    let dateTime = new Date();
+    let dayOfTheWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dateTime.getDay()];
+    let time = dateTime.getHours();
+    let timeSlot = (time >= 12) ? "afternoon" : "morning";
 
-      if (dayOfTheWeek === "Saturday" || dayOfTheWeek === "Sunday") {
-        return;
-      }
-
-      // At most 6 buttons, laid out 3 per row.
-      let currentCourses = (courseSchedule[dayOfTheWeek][timeSlot] ?? []).slice(0, 6);
-
-      let buttonArray = document.getElementById("course_button_array");
-      for (const course of currentCourses) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = course["abbreviation"];
-        button.name = course["name"];
-        button.courseNumber = course["number"];
-        button.className = 'px-6 py-3 text-lg bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors w-full h-full';
-
-        button.addEventListener('click', () => {
-          document.getElementById('course_number').value = `${button.courseNumber} - ${button.name}`;
-          document.querySelectorAll('#course_button_array button')
-            .forEach(b => b.classList.remove('bg-yellow-700', 'ring-2'));
-          button.classList.add('bg-yellow-700', 'ring-2');
-        });
-
-        buttonArray.appendChild(button);
-      }
-      buttonArray.className = 'grid gap-x-8 gap-y-4';
-      buttonArray.style.gridTemplateColumns = `repeat(${Math.min(currentCourses.length, 3)}, 1fr)`;
-      
-
-    } catch (err) {
-      console.error('courseSchedule.json load failed:', err);
+    if (dayOfTheWeek === "Saturday" || dayOfTheWeek === "Sunday") {
+      return;
     }
-  })();
+
+    // At most 6 buttons, laid out 3 per row.
+    let currentCourses = (courseSchedule[dayOfTheWeek][timeSlot] ?? []).slice(0, 6);
+
+    let buttonArray = document.getElementById("course_button_array");
+    for (const course of currentCourses) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = course["abbreviation"];
+      button.name = course["name"];
+      button.courseNumber = course["number"];
+      button.className = 'px-6 py-3 text-lg bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors w-full h-full';
+
+      button.addEventListener('click', () => {
+        document.getElementById('course_number').value = `${button.courseNumber} - ${button.name}`;
+        document.querySelectorAll('#course_button_array button')
+          .forEach(b => b.classList.remove('bg-yellow-700', 'ring-2'));
+        button.classList.add('bg-yellow-700', 'ring-2');
+      });
+
+      buttonArray.appendChild(button);
+    }
+    buttonArray.className = 'grid gap-x-8 gap-y-4';
+    buttonArray.style.gridTemplateColumns = `repeat(${Math.min(currentCourses.length, 3)}, 1fr)`;
+  } catch (err) {
+    console.error('courseSchedule.json load failed:', err);
+  }
 }
 
 
@@ -274,16 +241,6 @@ export function wireSurveyForm(){
   const studentNumInput = document.getElementById('student_number');
   const usernameInput   = document.getElementById('dtu_username');
 
-  // --- Kiosk UX helpers & hardening for inputs ---
-  if (studentNumInput) {
-    try {
-      studentNumInput.setAttribute('inputmode', 'numeric');
-      studentNumInput.setAttribute('enterkeyhint', 'next');
-      studentNumInput.setAttribute('maxlength', '6');
-      studentNumInput.setAttribute('autocomplete', 'one-time-code');
-    } catch {}
-  }
-
   // Move to satisfaction row without forcing center
   function jumpToSatisfaction() {
     const firstSmile = document.querySelector('input[name="satisfaction"]');
@@ -293,60 +250,27 @@ export function wireSurveyForm(){
     }
   }
 
-  // Digits-only enforcement for the student number
-  if (studentNumInput) {
-    studentNumInput.addEventListener('beforeinput', (e) => {
-      const t = e.inputType || '';
-      if (t.startsWith('delete') || t.startsWith('history') || t.includes('format')) return;
-      const data = (e.data ?? '');
-      if (data && /\D/.test(data)) { e.preventDefault(); }
-    });
-
-    studentNumInput.addEventListener('input', () => {
-      const cleaned = (studentNumInput.value || '').replace(/\D/g, '').slice(0, 6);
-      if (studentNumInput.value !== cleaned) studentNumInput.value = cleaned;
-    });
-
-    studentNumInput.addEventListener('paste', (e) => {
-      e.preventDefault();
-      const txt = (e.clipboardData || window.clipboardData)?.getData('text') || '';
-      const cleaned = txt.replace(/\D/g, '').slice(0, 6);
-      const start = studentNumInput.selectionStart ?? studentNumInput.value.length;
-      const end   = studentNumInput.selectionEnd ?? studentNumInput.value.length;
-      const v = studentNumInput.value;
-      const next = (v.slice(0, start) + cleaned + v.slice(end)).replace(/\D/g, '').slice(0, 6);
-      studentNumInput.value = next;
-      studentNumInput.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-
-    studentNumInput.addEventListener('keydown', (e) => {
-      const allowedKeys = new Set(['Backspace','Delete','ArrowLeft','ArrowRight','Home','End','Tab']);
-      const isDigit = (e.key && /^[0-9]$/.test(e.key)) || (e.code && /^Numpad[0-9]$/.test(e.code));
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        jumpToSatisfaction();
-        return;
-      }
-      if (allowedKeys.has(e.key) || isDigit) return;
-      if ((e.ctrlKey || e.metaKey) && ['a','c','v','x','A','C','V','X'].includes(e.key)) return;
-      e.preventDefault();
-    });
-  }
+  // Digits only, however they got there (typing, paste, autofill). No maxlength in the HTML,
+  // so a pasted "s123456" arrives whole and loses its 's' here instead of its last digit.
+  studentNumInput.addEventListener('input', () => {
+    const cleaned = studentNumInput.value.replace(/\D/g, '').slice(0, 6);
+    if (studentNumInput.value !== cleaned) studentNumInput.value = cleaned;
+  });
+  studentNumInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); jumpToSatisfaction(); }
+  });
 
   // Tap anywhere outside inputs to dismiss the keyboard (tablet mode only)
-  if (!window.__surveyTapToDismissAttached) {
-    document.addEventListener('pointerdown', (e) => {
-      if (!(inKiosk && typeof inKiosk === 'function' && inKiosk())) return;
-      const t = e.target;
-      if (t && (t.closest('input, textarea, select, datalist, .ui-keep-focus'))) return;
-      const active = document.activeElement;
-      if (active && active.matches && active.matches('input, textarea, select')) {
-        try { active.blur(); } catch {}
-        // no re-centering here
-      }
-    }, { passive: true });
-    window.__surveyTapToDismissAttached = true;
-  }
+  document.addEventListener('pointerdown', (e) => {
+    if (!isKiosk()) return;
+    const t = e.target;
+    if (t && (t.closest('input, textarea, select, datalist, .ui-keep-focus'))) return;
+    const active = document.activeElement;
+    if (active && active.matches && active.matches('input, textarea, select')) {
+      try { active.blur(); } catch {}
+      // no re-centering here
+    }
+  }, { passive: true });
 
   // role toggle + clean abandoned field
   function toggleRole() {
@@ -406,7 +330,7 @@ export function wireSurveyForm(){
     document.getElementById('workshop_no').checked  = !preferWD;
     studentNumInput.value = '';
 
-    if (document.body.classList.contains('kiosk-mode')) {
+    if (isKiosk()) {
       try { document.activeElement?.blur(); } catch {}
     } else {
       try { studentNumInput.focus({ preventScroll: true }); } catch {}
@@ -427,7 +351,7 @@ export function wireSurveyForm(){
     const payload = {
       role: form.role.value,
       student_number: isStudent ? 's' + studentNumInput.value.trim() : null,
-      username:        !isStudent ? usernameInput.value.trim() : null,
+      username:        !isStudent ? usernameInput.value.trim().toLowerCase() : null,  // the backend takes lowercase only
       satisfaction: Number(form.querySelector('input[name="satisfaction"]:checked').value),
       course_number: (document.getElementById('course_number').value || '').trim() || null,
       building_number: linkToken ? null : state.selectedBuilding,
@@ -449,16 +373,7 @@ export function wireSurveyForm(){
       if (response.ok) {
         accept();
       } else {
-        let raw = '';
-        try {
-          const ct = (response.headers.get('Content-Type') || '').toLowerCase();
-          if (ct.includes('application/json')) {
-            const j = await response.json();
-            raw = j?.message || j?.error || (typeof j === 'string' ? j : JSON.stringify(j));
-          } else {
-            const t = await response.text(); if (t && t.trim().length) raw = t.trim();
-          }
-        } catch {}
+        const raw = await errorText(response);
 
         if (isSupporterDevice && isCredentialFault(response.status)) {
           clearSavedKey();
@@ -467,7 +382,7 @@ export function wireSurveyForm(){
           return;
         }
 
-        const { title, message } = friendlyError(raw, response.status, !!linkToken);
+        const { title, message } = friendlyError(raw, response.status);
         const keepable = response.status >= 500 || response.status === 429;
         const saved = keepable
           ? saveFailedSubmission(payload, `HTTP ${response.status}`)
@@ -494,10 +409,6 @@ export function wireSurveyForm(){
     if (redirectOnThankYouClose && linkToken) window.location.replace('https://pythonsupport.dtu.dk/');
     else thankYou.classList.add('hidden');
   });
-}
-
-function inKiosk() {
-  return document.body.classList.contains('kiosk-mode');
 }
 
 // What to tell the user once the failsafe has taken the response.

@@ -17,7 +17,6 @@ Production settings are in `/srv/pythonsupport-survey/backend/.env`:
 | --- | --- |
 | `SECRET_KEY` | Django's signing key. Changing it logs everyone out. |
 | `ALLOWED_HOSTS` | Space-separated host names the site answers to |
-| `FRONTEND_ORIGINS` | Space-separated origins allowed to call the API from a browser |
 | `SURVEY_PASSWORD` | The supporter password (daily code) |
 | `DATABASE_NAME` | The PostgreSQL database: `pis_survey`. If you change it, also change `DB` in `deploy/lib/common.sh`. Unset means the SQLite file `backend/pythonsupport/db.sqlite3`, which is only meant for local development. |
 | `DEBUG` | Leave unset in production. `1` turns on debug mode. |
