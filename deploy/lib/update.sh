@@ -19,9 +19,6 @@ update_app() {
   BACKUP=
   trap '[[ $? -eq 0 ]] || rollback' EXIT
 
-  step "Settings (backend/.env)"
-  write_env_file
-
   step "Python dependencies"
   sync_deps
   manage_as root collectstatic --no-input
@@ -54,7 +51,7 @@ rollback() {
   if [[ -n $BACKUP ]]; then
     echo "Restoring the database from $BACKUP"
     # pis can't open the root-only backup directory, so pass the dump on stdin.
-    runuser -u "$APP_USER" -- pg_restore --clean --if-exists --single-transaction --dbname="$DB" < "$BACKUP"
+    runuser -u "$APP_USER" -- pg_restore --clean --if-exists --single-transaction --dbname="$DATABASE_NAME" < "$BACKUP"
   fi
   git checkout --detach "$PIS_UPDATE_FROM"
   sync_deps

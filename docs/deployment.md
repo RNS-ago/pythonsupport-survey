@@ -42,7 +42,8 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
 | `manage.sh backup` | Back up the database (daily from cron, and before every update) |
 | `manage.sh users` | Database logins for the `pythonsupport` group (see [Data analysis](data-analysis.md#database-logins)) |
 | `manage.sh pipeline` | Run the notebook pipeline now (it also runs from cron) |
-| `lib/common.sh` | All settings (paths, users, port, backups, pipeline schedule) shared by the scripts; loads the other files in `lib/` |
+| `settings.env` | All settings that are the same on every server (paths, users, database, port, schedules); see [Changing settings](operations.md#changing-settings) |
+| `lib/common.sh` | Loads `settings.env` and the other files in `lib/`, and checks that the script runs as root from the checkout |
 | `lib/system.sh` | Packages, uv, the system users and the shared checkout |
 | `db-permissions.sql` | Schemas, roles and their rights in the database (see [Data analysis](data-analysis.md#database-logins)) |
 | `lib/postgres.sh` | The database, PAM password logins and the group's logins |
@@ -50,7 +51,7 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
 | `lib/backup.sh` | Backups and their cron job |
 | `lib/pipeline.sh` | The notebook pipeline: its user, database login, dashboard folder and cron job |
 | `lib/update.sh` | Updating, with rollback |
-| `pis-survey.service` | systemd unit for gunicorn; the scripts fill in its paths, user and port from `lib/common.sh` |
+| `pis-survey.service` | systemd unit for gunicorn; the scripts fill in its paths, user and port from `settings.env` |
 
 ## Before you start
 
@@ -87,9 +88,8 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
       of the checkout.
    3. Create the PostgreSQL user `pis` and the database `pis_survey`, and set up password
       logins through PAM (SSSD).
-   4. Ask for the supporter password and write `backend/.env` with a random
-      `SECRET_KEY`, `ALLOWED_HOSTS`, `DATABASE_NAME` and `DASHBOARD_HTML`. Root owns it; `pis`
-      can only read it.
+   4. Ask for the supporter password and write `backend/.env` with it, a random
+      `SECRET_KEY` and `ALLOWED_HOSTS`. Root owns it; `pis` can only read it.
    5. Install the Python dependencies of the backend and the notebooks, create Django's
       tables, and collect the admin's static files.
    6. Apply `deploy/db-permissions.sql` (the `processed_data`, `static_data` and
@@ -161,9 +161,8 @@ sudo /srv/pythonsupport-survey/deploy/manage.sh update
 
 To deploy another branch, for example for testing: `sudo /srv/pythonsupport-survey/deploy/manage.sh update my-branch`.
 
-The script pulls the code, sets the values in `backend/.env` that come from
-`deploy/lib/common.sh`, installs the backend's and the notebooks' dependencies and collects
-static files. It then stops gunicorn, backs up the database, applies migrations,
+The script pulls the code, installs the backend's and the notebooks' dependencies and
+collects static files. It then stops gunicorn, backs up the database, applies migrations,
 updates the pipeline's setup and starts gunicorn again. The site is
 down for the few seconds of the migrations; supporters' devices queue survey responses
 meanwhile.

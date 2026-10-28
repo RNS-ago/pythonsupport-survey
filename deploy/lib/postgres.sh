@@ -9,13 +9,14 @@ setup_database() {
   systemctl enable --now postgresql
   [[ $(pg_admin -c "SELECT 1 FROM pg_roles WHERE rolname = '$APP_USER'") == 1 ]] \
     || runuser -u postgres -- createuser "$APP_USER"
-  [[ $(pg_admin -c "SELECT 1 FROM pg_database WHERE datname = '$DB'") == 1 ]] \
-    || runuser -u postgres -- createdb --owner="$APP_USER" "$DB"
+  [[ $(pg_admin -c "SELECT 1 FROM pg_database WHERE datname = '$DATABASE_NAME'") == 1 ]] \
+    || runuser -u postgres -- createdb --owner="$APP_USER" "$DATABASE_NAME"
 }
 
 # Schemas, group roles and their rights, from the file maintainers edit.
 apply_db_permissions() {
-  pg_admin -1 -d "$DB" < deploy/db-permissions.sql
+  pg_admin -1 -d "$DATABASE_NAME" -v analyst="$ANALYST_ROLE" -v viewer="$VIEWER_ROLE" -v app_user="$APP_USER" \
+    < deploy/db-permissions.sql
 }
 
 # Users log in with their cluster (SSSD) username and password through PAM.
@@ -61,12 +62,12 @@ EOF
 # Needs apply_db_permissions to have run.
 analyst_login() {
   local user=$1
-  [[ $(pg_admin -d "$DB" -c "SELECT 1 FROM pg_roles WHERE rolname = '$user'") == 1 ]] \
-    || pg_admin -d "$DB" -c "CREATE ROLE \"$user\" LOGIN"
-  [[ $(pg_admin -d "$DB" -c "SELECT pg_has_role('$user', '$ANALYST_ROLE', 'MEMBER')") == t ]] \
-    || pg_admin -d "$DB" -c "GRANT $ANALYST_ROLE TO \"$user\""
-  pg_admin -d "$DB" -c "ALTER ROLE \"$user\" SET role = $ANALYST_ROLE"
-  pg_admin -d "$DB" -c "ALTER ROLE \"$user\" SET search_path = processed_data, public"
+  [[ $(pg_admin -d "$DATABASE_NAME" -c "SELECT 1 FROM pg_roles WHERE rolname = '$user'") == 1 ]] \
+    || pg_admin -d "$DATABASE_NAME" -c "CREATE ROLE \"$user\" LOGIN"
+  [[ $(pg_admin -d "$DATABASE_NAME" -c "SELECT pg_has_role('$user', '$ANALYST_ROLE', 'MEMBER')") == t ]] \
+    || pg_admin -d "$DATABASE_NAME" -c "GRANT $ANALYST_ROLE TO \"$user\""
+  pg_admin -d "$DATABASE_NAME" -c "ALTER ROLE \"$user\" SET role = $ANALYST_ROLE"
+  pg_admin -d "$DATABASE_NAME" -c "ALTER ROLE \"$user\" SET search_path = processed_data, public"
 }
 
 # Give every member of the developers' group a database login for the notebooks, and remove
@@ -87,14 +88,14 @@ sync_db_users() {
   # Every other login in pis_analyst belongs to someone who has left the group (pis is a member
   # too, for backups, and so is the pipeline). Viewers (pis_viewer only) are added by hand and
   # left alone.
-  for user in $(pg_admin -d "$DB" -c "SELECT r.rolname FROM pg_auth_members m
+  for user in $(pg_admin -d "$DATABASE_NAME" -c "SELECT r.rolname FROM pg_auth_members m
                                       JOIN pg_roles r ON r.oid = m.member
                                       JOIN pg_roles p ON p.oid = m.roleid
                                       WHERE p.rolname = '$ANALYST_ROLE'
                                         AND r.rolname NOT IN ('$APP_USER', '$PIPELINE_USER')"); do
     [[ $members == *" $user "* ]] && continue
     # Anything the login still owns goes to pis_analyst first, so no data is lost.
-    pg_admin -d "$DB" -c "REASSIGN OWNED BY \"$user\" TO $ANALYST_ROLE; DROP OWNED BY \"$user\"; DROP ROLE \"$user\""
+    pg_admin -d "$DATABASE_NAME" -c "REASSIGN OWNED BY \"$user\" TO $ANALYST_ROLE; DROP OWNED BY \"$user\"; DROP ROLE \"$user\""
     echo "Removed notebook access: $user"
   done
 }

@@ -6,8 +6,9 @@ first error. Outputs are not saved into the notebooks.
 
 On the server, cron runs it as pis-pipeline (deploy/lib/pipeline.sh).
 DASHBOARD_HTML is where the dashboard is saved; unset, it goes to visualization/dashboard.html.
+The tables it writes belong to pis_analyst, because every analyst's login and pis-pipeline's
+switch to that role when they log in (analyst_login in deploy/lib/postgres.sh).
 """
-import os
 import tempfile
 from pathlib import Path
 
@@ -20,10 +21,6 @@ NOTEBOOKS = [
     "processing/new_proccess_data.ipynb",
     "visualization/dashboard.ipynb",
 ]
-
-# The tables belong to pis_analyst, as when an analyst runs the notebooks, so either can replace
-# them. pis-pipeline (on the server) and every analyst are members.
-os.environ["PGOPTIONS"] = "-c role=pis_analyst"  # ANALYST_ROLE in deploy/lib/common.sh
 
 # The kernels talk over Unix sockets in a folder only this user can open. Over TCP on localhost,
 # other users of the server could read the outputs, the dashboard's rows among them.

@@ -12,22 +12,29 @@ Running the server after [deployment](deployment.md).
 
 ## Changing settings
 
-Production settings are in `/srv/pythonsupport-survey/backend/.env`:
+The settings live in two files. gunicorn and `manage.py` read both, `settings.env` last, so
+its values win when both set the same name.
+
+[`deploy/settings.env`](../deploy/settings.env) is committed and holds everything that is the
+same on every server: paths, users, the database name (`DATABASE_NAME`), the port, the backup
+and pipeline schedules, and where the dashboard is written (`DASHBOARD_HTML`). The deploy scripts
+and the systemd unit read it too. Each setting is explained in the file. To change one, edit it,
+commit, and deploy with `manage.sh update`. Most of them describe the setup itself, so changing
+one on a running server also means moving what it names, for example the database or the
+checkout.
+
+`/srv/pythonsupport-survey/backend/.env` is written by `setup.sh` and holds the secrets and
+what differs per server:
 
 | Variable | Meaning |
 | --- | --- |
 | `SECRET_KEY` | Django's signing key. Changing it logs everyone out. |
 | `ALLOWED_HOSTS` | Space-separated host names the site answers to |
 | `SURVEY_PASSWORD` | The supporter password (daily code) |
-| `DATABASE_NAME` | The PostgreSQL database: `pis_survey`. Unset means the SQLite file `backend/pythonsupport/db.sqlite3`, which is only meant for local development. |
-| `DASHBOARD_HTML` | The dashboard the pipeline builds, shown at `/admin/dashboard/` (see [Dashboard pipeline](#dashboard-pipeline)) |
 | `DEBUG` | Leave unset in production. `1` turns on debug mode. |
+| `PIS_BIND` | Only in test mode: `0.0.0.0:2810`, so gunicorn answers other machines too |
 
 Edit it with `sudo`, then run `sudo systemctl restart pis-survey`.
-
-`DATABASE_NAME` and `DASHBOARD_HTML` come from `DB` and `DASHBOARD_DIR` in
-`deploy/lib/common.sh`: `setup.sh` and `manage.sh update` write them into `.env` every time, so
-change them there instead.
 
 ## Permissions
 
@@ -76,7 +83,7 @@ conflicting edits.
 ## Dashboard pipeline
 
 Cron runs `notebooks/pipeline.py` every hour from 8:00 to 16:00 and at midnight
-(`PIPELINE_SCHEDULE` in `deploy/lib/common.sh`). It runs the processing notebooks, which
+(`PIPELINE_SCHEDULE` in `deploy/settings.env`). It runs the processing notebooks, which
 replace the tables in `processed_data`, and then `dashboard.ipynb`, which writes
 `/var/lib/pis-dashboard/dashboard.html`. Staff accounts that may view survey responses open
 it at `/admin/dashboard/`, or from the link on the admin start page.
@@ -122,7 +129,7 @@ open.
 
 `deploy/manage.sh backup` runs daily at 03:00 and before every update. It writes
 `/var/backups/pis-survey/db-<date>.dump` (a `pg_dump` of the whole database, including the
-analysts' schemas) and deletes dumps older than 30 days (`KEEP_DAYS` in `deploy/lib/common.sh`). The
+analysts' schemas) and deletes dumps older than 30 days (`KEEP_DAYS` in `deploy/settings.env`). The
 backups contain student numbers: keep them only on storage the team controls, and only as
 long as the retention policy allows.
 

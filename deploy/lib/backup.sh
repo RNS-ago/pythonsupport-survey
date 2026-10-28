@@ -8,7 +8,7 @@ backup_db() {
   file=$BACKUP_DIR/db-$(date +%F-%H%M%S).dump
   # A consistent snapshot, also while gunicorn is writing. Includes the analysts' schemas.
   # The shell creates the file before pg_dump runs, so remove it if the dump fails.
-  runuser -u "$APP_USER" -- pg_dump --format=custom "$DB" > "$file" || { rm -f "$file"; return 1; }
+  runuser -u "$APP_USER" -- pg_dump --format=custom "$DATABASE_NAME" > "$file" || { rm -f "$file"; return 1; }
   echo "$file"
   find "$BACKUP_DIR" -name 'db-*.dump' -mtime +"$KEEP_DAYS" -delete
 }

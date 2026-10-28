@@ -16,16 +16,21 @@ Both read a .env file first, from the notebook's folder or above.
 import os
 import socket
 from getpass import getpass
+from pathlib import Path
 
 import certifi
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 
 import mssql_python
 
+# The server's settings, in the checkout next to notebooks/. Use only names that mean the same
+# here as on the server: DASHBOARD_HTML, for one, is a path on the server.
+SETTINGS = dotenv_values(Path(__file__).resolve().parents[3] / "deploy" / "settings.env")
+
 PG_SERVER = "psqdb.compute.dtu.dk"
-PG_DATABASE = "pis_survey"  # DB in deploy/lib/common.sh
+PG_DATABASE = SETTINGS["DATABASE_NAME"]
 PG_SOCKET_DIR = "/var/run/postgresql"
 
 AIT_SERVER = "AIT-PIMSQLAG1L.win.dtu.dk"

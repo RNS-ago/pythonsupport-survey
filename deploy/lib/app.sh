@@ -1,13 +1,12 @@
 # The Django app: settings, dependencies, manage.py and the gunicorn service.
 
-# Writes backend/.env once (needs DOMAIN and TEST_MODE from setup.sh) and keeps an existing one,
-# but sets the values that come from common.sh every time, so changing them there is enough.
+# Writes backend/.env once (needs DOMAIN and TEST_MODE from setup.sh); keeps an existing one.
+# It holds only the secrets and the values that differ per server; the rest is in settings.env.
 write_env_file() {
   local env_file=backend/.env
   if [[ -f $env_file ]]; then
     echo "Keeping the existing $env_file."
   else
-    : "${DOMAIN:?backend/.env is missing. Run setup.sh first.}"
     local password
     read -rsp "Supporter password (the daily code): " password; echo
     install -m 640 -o root -g "$APP_USER" /dev/null "$env_file"
@@ -19,23 +18,11 @@ EOF
     # No nginx in front in test mode: let the browser reach gunicorn directly.
     [[ -z $TEST_MODE ]] || printf 'DEBUG=1\nPIS_BIND=0.0.0.0:%s\n' "$PORT" >> "$env_file"
   fi
-  set_env "$env_file" DATABASE_NAME "$DB"
-  set_env "$env_file" DASHBOARD_HTML "$DASHBOARD_HTML"
   # pis reads the settings but can't change them. They hold the secret key and the password,
   # so the developers' group gets no access (setfacl -b drops the ACL from share_checkout).
   setfacl -b "$env_file"
   chown root:"$APP_USER" "$env_file"
   chmod 640 "$env_file"
-}
-
-# Sets NAME=value in an environment file, replacing an existing NAME line. Rewrites the file in
-# place, so it keeps its owner and mode and no copy of the secrets is left next to it, and only
-# when the value changes, so an interrupted update rarely gets the chance to cut it short.
-set_env() {
-  local file=$1 name=$2 value=$3 rest
-  grep -qxF "$name=$value" "$file" && return
-  rest=$(grep -v "^$name=" "$file" || true)
-  printf '%s\n%s=%s\n' "$rest" "$name" "$value" > "$file"
 }
 
 # Install dependencies into backend/.venv and notebooks/.venv as root: pis and pis-pipeline can
@@ -47,12 +34,12 @@ sync_deps() {
   backend/.venv/bin/python -m compileall -q backend/pythonsupport
 }
 
-# manage.py with the production settings from backend/.env, as the given user:
-# pis for anything touching the database, root for collectstatic.
+# manage.py with the production settings, as the given user: pis for anything touching the
+# database, root for collectstatic. Reads the same files as the service, in the same order.
 manage_as() {
   local user=$1; shift
   sudo -u "$user" -H uv run --no-sync --directory "$APP_DIR/backend/pythonsupport" \
-    --env-file "$APP_DIR/backend/.env" python manage.py "$@"
+    --env-file "$APP_DIR/backend/.env" --env-file "$APP_DIR/deploy/settings.env" python manage.py "$@"
 }
 
 install_service() {

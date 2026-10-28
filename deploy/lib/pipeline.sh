@@ -17,7 +17,7 @@ setup_pipeline() {
   create_system_user "$PIPELINE_USER"
   # Logs in over the local socket as itself, like pis, with the analysts' rights.
   analyst_login "$PIPELINE_USER"
-  install -d -m 750 -o "$PIPELINE_USER" -g "$APP_USER" "$DASHBOARD_DIR"
+  install -d -m 750 -o "$PIPELINE_USER" -g "$APP_USER" "${DASHBOARD_HTML%/*}"   # its folder
   # Output goes to the journal: journalctl -t pis-pipeline
   echo "$PIPELINE_SCHEDULE $PIPELINE_USER $PIPELINE_RUN 2>&1 | systemd-cat -t $PIPELINE_USER" \
     > /etc/cron.d/$PIPELINE_USER

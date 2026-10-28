@@ -1,5 +1,5 @@
 # Installed to /etc/systemd/system/ by setup.sh and manage.sh update. install_service
-# (deploy/lib/app.sh) fills in the @...@ values from deploy/lib/common.sh.
+# (deploy/lib/app.sh) fills in the @...@ values from deploy/settings.env.
 [Unit]
 Description=DTU Python Support survey backend (gunicorn)
 After=network.target
@@ -9,6 +9,8 @@ User=@APP_USER@
 Group=@APP_USER@
 WorkingDirectory=@APP_DIR@/backend/pythonsupport
 EnvironmentFile=@APP_DIR@/backend/.env
+# Read last, so these settings win if .env sets the same name.
+EnvironmentFile=@APP_DIR@/deploy/settings.env
 # Only nginx talks to gunicorn, so it listens on localhost only: nginx forwards
 # https://psqdb.compute.dtu.dk to this port. Test mode sets PIS_BIND=0.0.0.0:<port> in .env,
 # which overrides this default.
