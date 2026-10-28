@@ -4,10 +4,12 @@
 
 Jupyter notebooks run on your own machine and connect to the live database at
 `psqdb.compute.dtu.dk:5432` over TLS, logging in with your DTU account and password.
-Notebooks running on the server itself, such as a pipeline, use PostgreSQL's local socket.
+Notebooks running on the server itself, such as the [pipeline](#pipeline), use PostgreSQL's
+local socket.
 
 - [Database logins](#database-logins)
 - [Connecting from a notebook](#connecting-from-a-notebook)
+- [Pipeline](#pipeline)
 - [Old data](#old-data)
 
 ## Database logins
@@ -74,19 +76,35 @@ db = get_pg_engine()  # or get_pg_engine("<your account>") if your local account
 # Processing: raw data in, a redacted table out, in processed_data.
 raw = pd.read_sql("SELECT * FROM survey_satisfactionsurveyresponse", db)
 processed = raw.drop(columns=["student_number", "username"])
-processed.to_sql("responses", db, schema="processed_data", if_exists="replace", index=False)
+processed.to_sql("processed_responses", db, schema="processed_data", if_exists="replace", index=False)
 
 # Visualization: only the processed table.
-df = pd.read_sql('SELECT * FROM processed_data.responses', db)
+df = pd.read_sql('SELECT * FROM processed_data.processed_responses', db)
 ```
 
 On your machine, `get_pg_engine()` ([`notebooks/src/pis_lib/connect.py`](../notebooks/src/pis_lib/connect.py)) takes
-the password from `PGPASSWORD`, or asks for it. On the server, such as a pipeline running a
-notebook there, it uses PostgreSQL's local socket instead and needs no password; it logs in as
-the account running the notebook.
+the password from `PGPASSWORD`, or asks for it. On the server, such as in the pipeline, it uses
+PostgreSQL's local socket instead and needs no password; it logs in as the account running the
+notebook.
 
 Django keeps its tables in `public`, the default schema, and its migrations may change
 anything there; analysts can only read its `survey_*` tables.
+
+## Pipeline
+
+[`notebooks/pipeline.py`](../notebooks/pipeline.py) runs the notebooks in `NOTEBOOKS` in order:
+the two processing notebooks, then `visualization/dashboard.ipynb`. It stops at the first error
+and saves no outputs into the notebooks. To run it on your machine:
+
+```sh
+cd notebooks
+uv run python pipeline.py
+```
+
+The server runs it on a schedule as `pis-pipeline` and shows the dashboard at
+`/admin/dashboard/` (see [Dashboard pipeline](operations.md#dashboard-pipeline)). A notebook in
+`NOTEBOOKS` must run unattended, so it can't ask for input. On the server it can't write to the
+checkout: save results to the database, and the dashboard to `DASHBOARD_HTML`.
 
 ## Old data
 

@@ -25,7 +25,8 @@ from sqlalchemy.engine import URL
 import mssql_python
 
 PG_SERVER = "psqdb.compute.dtu.dk"
-SOCKET_DIR = "/var/run/postgresql"
+PG_DATABASE = "pis_survey"  # DB in deploy/lib/common.sh
+PG_SOCKET_DIR = "/var/run/postgresql"
 
 AIT_SERVER = "AIT-PIMSQLAG1L.win.dtu.dk"
 AIT_DATABASE = "DTU_Matrikel"
@@ -34,7 +35,7 @@ AIT_DATABASE = "DTU_Matrikel"
 def get_pg_engine(user=None):
     load_dotenv()
     if socket.gethostname().split(".")[0] == PG_SERVER.split(".")[0]:
-        url = URL.create("postgresql+psycopg", username=user, host=SOCKET_DIR, database="pis_survey")
+        url = URL.create("postgresql+psycopg", username=user, host=PG_SOCKET_DIR, database=PG_DATABASE)
     else:
         url = URL.create(
             "postgresql+psycopg",
@@ -42,7 +43,7 @@ def get_pg_engine(user=None):
             password=os.environ.get("PGPASSWORD") or getpass("DTU password: "),
             host=PG_SERVER,
             port=5432,
-            database="pis_survey",
+            database=PG_DATABASE,
             query={
                 "sslmode": "verify-full",
                 "sslnegotiation": "direct",  # required: the nginx port only speaks direct TLS

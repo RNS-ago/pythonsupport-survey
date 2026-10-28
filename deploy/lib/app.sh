@@ -1,11 +1,13 @@
 # The Django app: settings, dependencies, manage.py and the gunicorn service.
 
-# Writes backend/.env once (needs DOMAIN and TEST_MODE from setup.sh); keeps an existing one.
+# Writes backend/.env once (needs DOMAIN and TEST_MODE from setup.sh) and keeps an existing one,
+# but sets the values that come from common.sh every time, so changing them there is enough.
 write_env_file() {
   local env_file=backend/.env
   if [[ -f $env_file ]]; then
     echo "Keeping the existing $env_file."
   else
+    : "${DOMAIN:?backend/.env is missing. Run setup.sh first.}"
     local password
     read -rsp "Supporter password (the daily code): " password; echo
     install -m 640 -o root -g "$APP_USER" /dev/null "$env_file"
@@ -13,11 +15,12 @@ write_env_file() {
 SECRET_KEY=$(openssl rand -hex 32)
 ALLOWED_HOSTS=$DOMAIN
 SURVEY_PASSWORD=$password
-DATABASE_NAME=$DB
 EOF
     # No nginx in front in test mode: let the browser reach gunicorn directly.
     [[ -z $TEST_MODE ]] || printf 'DEBUG=1\nPIS_BIND=0.0.0.0:%s\n' "$PORT" >> "$env_file"
   fi
+  set_env "$env_file" DATABASE_NAME "$DB"
+  set_env "$env_file" DASHBOARD_HTML "$DASHBOARD_HTML"
   # pis reads the settings but can't change them. They hold the secret key and the password,
   # so the developers' group gets no access (setfacl -b drops the ACL from share_checkout).
   setfacl -b "$env_file"
@@ -25,9 +28,21 @@ EOF
   chmod 640 "$env_file"
 }
 
-# Install dependencies into backend/.venv as root: pis can run them but not change them.
+# Sets NAME=value in an environment file, replacing an existing NAME line. Rewrites the file in
+# place, so it keeps its owner and mode and no copy of the secrets is left next to it, and only
+# when the value changes, so an interrupted update rarely gets the chance to cut it short.
+set_env() {
+  local file=$1 name=$2 value=$3 rest
+  grep -qxF "$name=$value" "$file" && return
+  rest=$(grep -v "^$name=" "$file" || true)
+  printf '%s\n%s=%s\n' "$rest" "$name" "$value" > "$file"
+}
+
+# Install dependencies into backend/.venv and notebooks/.venv as root: pis and pis-pipeline can
+# run them but not change them.
 sync_deps() {
   uv sync --directory backend --locked --no-dev --compile-bytecode
+  uv sync --directory notebooks --locked --no-dev --compile-bytecode
   # pis can't write __pycache__ into the root-owned checkout, so compile the app's code now.
   backend/.venv/bin/python -m compileall -q backend/pythonsupport
 }
@@ -41,7 +56,8 @@ manage_as() {
 }
 
 install_service() {
-  install -m 644 deploy/$SERVICE.service /etc/systemd/system/$SERVICE.service
+  sed -e "s|@APP_DIR@|$APP_DIR|g" -e "s|@APP_USER@|$APP_USER|g" -e "s|@PORT@|$PORT|g" deploy/$SERVICE.service \
+    | install -m 644 /dev/stdin /etc/systemd/system/$SERVICE.service
   systemctl daemon-reload
 }
 

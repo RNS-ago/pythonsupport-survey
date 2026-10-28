@@ -55,13 +55,23 @@ EOF
   pg_admin -c 'SELECT pg_reload_conf()' >/dev/null
 }
 
+# A database login named like the account, for the notebooks. It is a member of pis_analyst
+# (rights in deploy/db-permissions.sql), and its sessions switch to pis_analyst, so all analysts
+# share the tables they create, and tables created without a schema go to processed_data.
+# Needs apply_db_permissions to have run.
+analyst_login() {
+  local user=$1
+  [[ $(pg_admin -d "$DB" -c "SELECT 1 FROM pg_roles WHERE rolname = '$user'") == 1 ]] \
+    || pg_admin -d "$DB" -c "CREATE ROLE \"$user\" LOGIN"
+  [[ $(pg_admin -d "$DB" -c "SELECT pg_has_role('$user', '$ANALYST_ROLE', 'MEMBER')") == t ]] \
+    || pg_admin -d "$DB" -c "GRANT $ANALYST_ROLE TO \"$user\""
+  pg_admin -d "$DB" -c "ALTER ROLE \"$user\" SET role = $ANALYST_ROLE"
+  pg_admin -d "$DB" -c "ALTER ROLE \"$user\" SET search_path = processed_data, public"
+}
+
 # Give every member of the developers' group a database login for the notebooks, and remove
 # the logins of people who have left it. See docs/data-analysis.md.
-#
 # PostgreSQL can't check Linux groups, so each member gets a login named like their account.
-# Each login is a member of pis_analyst (rights in deploy/db-permissions.sql), and its sessions
-# switch to pis_analyst, so all analysts share the tables they create, and tables created
-# without a schema go to processed_data. Needs apply_db_permissions to have run.
 sync_db_users() {
   local members user
   # Only members listed in the group itself; someone whose primary group it is isn't listed.
@@ -70,21 +80,18 @@ sync_db_users() {
   for user in $members; do
     # Names come from the directory service and go into SQL: allow only plain account names.
     [[ $user =~ ^[a-z0-9_.-]+$ ]] || { echo "Skipping unusual account name: $user" >&2; continue; }
-    [[ $(pg_admin -d "$DB" -c "SELECT 1 FROM pg_roles WHERE rolname = '$user'") == 1 ]] \
-      || pg_admin -d "$DB" -c "CREATE ROLE \"$user\" LOGIN"
-    [[ $(pg_admin -d "$DB" -c "SELECT pg_has_role('$user', '$ANALYST_ROLE', 'MEMBER')") == t ]] \
-      || pg_admin -d "$DB" -c "GRANT $ANALYST_ROLE TO \"$user\""
-    pg_admin -d "$DB" -c "ALTER ROLE \"$user\" SET role = $ANALYST_ROLE"
-    pg_admin -d "$DB" -c "ALTER ROLE \"$user\" SET search_path = processed_data, public"
+    analyst_login "$user"
     echo "Notebook access: $user"
   done
 
   # Every other login in pis_analyst belongs to someone who has left the group (pis is a member
-  # too, for backups). Viewers (pis_viewer only) are added by hand and left alone.
+  # too, for backups, and so is the pipeline). Viewers (pis_viewer only) are added by hand and
+  # left alone.
   for user in $(pg_admin -d "$DB" -c "SELECT r.rolname FROM pg_auth_members m
                                       JOIN pg_roles r ON r.oid = m.member
                                       JOIN pg_roles p ON p.oid = m.roleid
-                                      WHERE p.rolname = '$ANALYST_ROLE' AND r.rolname <> '$APP_USER'"); do
+                                      WHERE p.rolname = '$ANALYST_ROLE'
+                                        AND r.rolname NOT IN ('$APP_USER', '$PIPELINE_USER')"); do
     [[ $members == *" $user "* ]] && continue
     # Anything the login still owns goes to pis_analyst first, so no data is lost.
     pg_admin -d "$DB" -c "REASSIGN OWNED BY \"$user\" TO $ANALYST_ROLE; DROP OWNED BY \"$user\"; DROP ROLE \"$user\""

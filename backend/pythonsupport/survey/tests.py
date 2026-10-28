@@ -1,5 +1,8 @@
+import tempfile
 from datetime import timedelta
+from pathlib import Path
 
+from django.contrib.auth.models import Permission, User
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 
@@ -182,3 +185,31 @@ class SupporterProblemLogTests(TestCase):
         ]:
             self.assertEqual(self.post(data).status_code, 400, data)
         self.assertFalse(SupporterProblemLog.objects.exists())
+
+
+class DashboardTests(TestCase):
+    def setUp(self):
+        self.page = Path(self.enterContext(tempfile.TemporaryDirectory())) / 'dashboard.html'
+        self.page.write_text('<p>charts</p>')
+        self.enterContext(override_settings(DASHBOARD_HTML=self.page))
+
+    def log_in(self, *permissions):
+        user = User.objects.create_user('analyst', is_staff=True)
+        user.user_permissions.set(Permission.objects.filter(codename__in=permissions))
+        self.client.force_login(user)
+
+    def test_needs_admin_login_and_view_permission(self):
+        self.assertRedirects(self.client.get('/admin/dashboard/'), '/admin/login/?next=/admin/dashboard/')
+        self.log_in()
+        self.assertEqual(self.client.get('/admin/dashboard/').status_code, 403)
+        self.assertNotContains(self.client.get('/admin/'), '/admin/dashboard/')
+
+    def test_serves_the_page_sandboxed(self):
+        self.log_in('view_satisfactionsurveyresponse')
+        self.assertContains(self.client.get('/admin/'), '/admin/dashboard/')
+        response = self.client.get('/admin/dashboard/')
+        self.assertEqual(b''.join(response.streaming_content), b'<p>charts</p>')
+        self.assertIn('sandbox allow-scripts allow-downloads;', response['Content-Security-Policy'])
+        self.assertIn("default-src 'none'", response['Content-Security-Policy'])
+        self.page.unlink()
+        self.assertEqual(self.client.get('/admin/dashboard/').status_code, 404)

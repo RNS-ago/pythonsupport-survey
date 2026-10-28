@@ -37,7 +37,7 @@ test_mode_warning() {
 
 step "System packages";                  install_packages
 step "uv";                               install_uv
-step "Service user '$APP_USER'";         create_app_user
+step "Service user '$APP_USER'";         create_system_user "$APP_USER"
 step "Shared checkout (group '$DEV_GROUP')"; share_checkout
 step "PostgreSQL database";              setup_database
 step "PostgreSQL password logins (PAM)"; setup_pam_auth
@@ -51,6 +51,7 @@ manage_as root collectstatic --no-input
 # After migrate, so the rights cover Django's tables.
 step "Database rights (deploy/db-permissions.sql)"; apply_db_permissions
 step "Notebook access for the '$DEV_GROUP' group";  sync_db_users
+step "Notebook pipeline (cron: $PIPELINE_SCHEDULE)"; setup_pipeline
 
 step "Backups (cron: $BACKUP_SCHEDULE)"; install_backup_cron
 

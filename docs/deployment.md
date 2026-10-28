@@ -14,7 +14,7 @@ HTTPS is handled by DTU's nginx, which is already set up on the server
 (`/etc/nginx/conf.d/psqdb.conf`, not part of this repository; see [nginx](nginx.md)). Our
 part only has to answer on `127.0.0.1:2810`.
 
-The server runs two processes:
+The server runs two processes and a scheduled job:
 
 - **gunicorn**: runs Django as the systemd service `pis-survey`, as the system user
   `pis`, listening on `127.0.0.1:2810` only (for the forwarding details, see
@@ -22,6 +22,10 @@ The server runs two processes:
 - **PostgreSQL**: the database `pis_survey`, owned by the database user `pis`, backed up
   daily. Django's tables are in the `public` schema; processed tables from the notebooks go
   in the `processed_data` schema (see [Data analysis](data-analysis.md)).
+- **The notebook pipeline**: cron runs `notebooks/pipeline.py` as the system user
+  `pis-pipeline`, every hour from 8:00 to 16:00 and at midnight. It rebuilds the processed
+  tables and the dashboard that the admin shows at `/admin/dashboard/` (see
+  [Dashboard pipeline](operations.md#dashboard-pipeline)).
 
 The code lives in one checkout at `/srv/pythonsupport-survey`, and the scripts and config
 files expect that path. The data lives in PostgreSQL, so re-cloning or cleaning the checkout
@@ -37,14 +41,16 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
 | `manage.sh update [branch]` | Deploy new code |
 | `manage.sh backup` | Back up the database (daily from cron, and before every update) |
 | `manage.sh users` | Database logins for the `pythonsupport` group (see [Data analysis](data-analysis.md#database-logins)) |
-| `lib/common.sh` | All settings (paths, users, port, backups) shared by the scripts; loads the other files in `lib/` |
-| `lib/system.sh` | Packages, uv, the `pis` user and the shared checkout |
+| `manage.sh pipeline` | Run the notebook pipeline now (it also runs from cron) |
+| `lib/common.sh` | All settings (paths, users, port, backups, pipeline schedule) shared by the scripts; loads the other files in `lib/` |
+| `lib/system.sh` | Packages, uv, the system users and the shared checkout |
 | `db-permissions.sql` | Schemas, roles and their rights in the database (see [Data analysis](data-analysis.md#database-logins)) |
 | `lib/postgres.sh` | The database, PAM password logins and the group's logins |
 | `lib/app.sh` | `backend/.env`, dependencies, `manage.py` and the gunicorn service |
 | `lib/backup.sh` | Backups and their cron job |
+| `lib/pipeline.sh` | The notebook pipeline: its user, database login, dashboard folder and cron job |
 | `lib/update.sh` | Updating, with rollback |
-| `pis-survey.service` | systemd unit for gunicorn |
+| `pis-survey.service` | systemd unit for gunicorn; the scripts fill in its paths, user and port from `lib/common.sh` |
 
 ## Before you start
 
@@ -82,17 +88,19 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
    3. Create the PostgreSQL user `pis` and the database `pis_survey`, and set up password
       logins through PAM (SSSD).
    4. Ask for the supporter password and write `backend/.env` with a random
-      `SECRET_KEY`, `ALLOWED_HOSTS` and `DATABASE_NAME=pis_survey`. Root owns it; `pis`
+      `SECRET_KEY`, `ALLOWED_HOSTS`, `DATABASE_NAME` and `DASHBOARD_HTML`. Root owns it; `pis`
       can only read it.
-   5. Install the Python dependencies, create Django's tables, and collect the admin's
-      static files.
+   5. Install the Python dependencies of the backend and the notebooks, create Django's
+      tables, and collect the admin's static files.
    6. Apply `deploy/db-permissions.sql` (the `processed_data`, `static_data` and
       `published_data` schemas, and the `pis_analyst` and `pis_viewer` roles), and create a
       database login for every member of `pythonsupport` for the
       [notebooks](data-analysis.md).
-   7. Install the daily backup cron job.
-   8. Start the `pis-survey` service on `127.0.0.1:2810`, and check that Django answers.
-   9. Ask you to create the first admin account for `/admin/`.
+   7. Create the `pis-pipeline` system user with its database login, the dashboard folder
+      `/var/lib/pis-dashboard`, and the pipeline's cron job.
+   8. Install the daily backup cron job.
+   9. Start the `pis-survey` service on `127.0.0.1:2810`, and check that Django answers.
+   10. Ask you to create the first admin account for `/admin/`.
 
    If a step fails, fix the cause and run the script again. It keeps the existing
    `.env`, so rerunning it is safe.
@@ -100,6 +108,15 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
 3. Open `https://psqdb.compute.dtu.dk`, log in with the supporter password, and submit a
    test response and a test problem log. Check that both appear under
    `https://psqdb.compute.dtu.dk/admin/`.
+
+4. Load the old survey (`static_data.old_responses`, see [Old data](data-analysis.md#old-data))
+   and the student data (`static_data.students`), which the pipeline reads. Then build the
+   dashboard without waiting for cron, and check that it opens at
+   `https://psqdb.compute.dtu.dk/admin/dashboard/`:
+
+   ```sh
+   sudo /srv/pythonsupport-survey/deploy/manage.sh pipeline
+   ```
 
 The site only works over HTTPS: in production the session cookie is HTTPS-only, so
 logging in over plain HTTP fails. If the site answers `400 Bad Request` or `502 Bad
@@ -144,8 +161,10 @@ sudo /srv/pythonsupport-survey/deploy/manage.sh update
 
 To deploy another branch, for example for testing: `sudo /srv/pythonsupport-survey/deploy/manage.sh update my-branch`.
 
-The script pulls the code, installs dependencies and collects static files. It then stops
-gunicorn, backs up the database, applies migrations and starts gunicorn again. The site is
+The script pulls the code, sets the values in `backend/.env` that come from
+`deploy/lib/common.sh`, installs the backend's and the notebooks' dependencies and collects
+static files. It then stops gunicorn, backs up the database, applies migrations,
+updates the pipeline's setup and starts gunicorn again. The site is
 down for the few seconds of the migrations; supporters' devices queue survey responses
 meanwhile.
 

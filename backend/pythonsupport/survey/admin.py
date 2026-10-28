@@ -2,6 +2,9 @@ from django.contrib import admin
 
 from .models import SatisfactionSurveyResponse, SupporterProblemLog
 
+# The start page, with a link to the dashboard.
+admin.site.index_template = 'survey/admin_index.html'
+
 @admin.register(SatisfactionSurveyResponse)
 class SatisfactionSurveyResponseAdmin(admin.ModelAdmin):
     list_display = [

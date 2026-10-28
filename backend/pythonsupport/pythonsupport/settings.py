@@ -29,6 +29,13 @@ SURVEY_PASSWORD = os.environ['SURVEY_PASSWORD']
 # The password unlocks the session, so this is how often it must be re-entered.
 SESSION_COOKIE_AGE = 60 * 60 * 24
 
+# The page /admin/dashboard/ shows, made by notebooks/visualization/dashboard.ipynb. On the server
+# the pipeline writes it outside the checkout (DASHBOARD_HTML in backend/.env, set by deploy/);
+# elsewhere the notebook saves it next to itself.
+DASHBOARD_HTML = os.environ.get(
+    'DASHBOARD_HTML', BASE_DIR.parent.parent / 'notebooks' / 'visualization' / 'dashboard.html'
+)
+
 
 # Application definition
 
@@ -76,7 +83,7 @@ WSGI_APPLICATION = 'pythonsupport.wsgi.application'
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
 if os.environ.get('DATABASE_NAME'):
-    # The server: PostgreSQL on the same machine (deploy/setup.sh sets DATABASE_NAME).
+    # The server: PostgreSQL on the same machine (deploy/ sets DATABASE_NAME).
     # Connects over the local socket as the OS user running Django (pis), so no password.
     DATABASES = {
         'default': {

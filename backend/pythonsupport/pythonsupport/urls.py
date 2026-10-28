@@ -9,6 +9,8 @@ from survey import views
 FRONTEND_DIR = settings.BASE_DIR.parent.parent / 'frontend'
 
 urlpatterns = [
+    # Before admin/, which would answer it with a 404. admin_view lets in only logged-in staff.
+    path('admin/dashboard/', admin.site.admin_view(views.dashboard), name='dashboard'),
     path('admin/', admin.site.urls),
     path('api/csrf/', views.request_csrf_token),
     path('api/responses/', views.submit_response),

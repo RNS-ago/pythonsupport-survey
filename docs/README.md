@@ -26,11 +26,13 @@
 - [Operations](operations.md)
   - [Changing settings](operations.md#changing-settings)
   - [Permissions](operations.md#permissions)
+  - [Dashboard pipeline](operations.md#dashboard-pipeline)
   - [Backups and restore](operations.md#backups-and-restore)
   - [Useful commands](operations.md#useful-commands)
 - [Data analysis](data-analysis.md)
   - [Database logins](data-analysis.md#database-logins)
   - [Connecting from a notebook](data-analysis.md#connecting-from-a-notebook)
+  - [Pipeline](data-analysis.md#pipeline)
   - [Old data](data-analysis.md#old-data)
 
 Component notes:

@@ -1,18 +1,20 @@
 # Settings and helpers shared by setup.sh and manage.sh, which source this file; it then loads
 # the other files in deploy/lib. Not meant to be run on its own.
-# The settings below are the only place to change these values in the scripts. pis-survey.service
-# and deploy/db-permissions.sql can't read them, so change them there by hand too.
+# The settings below are the only place to change these values in the scripts and in
+# pis-survey.service. deploy/db-permissions.sql and the notebooks (notebooks/pipeline.py,
+# notebooks/src/pis_lib/connect.py) can't read them, so change them there by hand too.
 #
 # Ownership (see "Permissions" in docs/operations.md):
 #   root owns the checkout, including backend/.venv and backend/staticfiles, and runs git and uv;
 #   the developers' group can change the checkout too; pis is not in it;
-#   pis runs the app and can only write the database; root owns the backups.
+#   pis runs the app and can only write the database; root owns the backups;
+#   pis-pipeline runs the notebook pipeline and writes the dashboard, which pis can only read.
 set -euo pipefail
 
 APP_DIR=/srv/pythonsupport-survey
 APP_USER=pis
 SERVICE=pis-survey
-# Must match DATABASE_NAME in backend/.env (written by setup.sh).
+# setup.sh and manage.sh update write it into backend/.env as DATABASE_NAME.
 DB=pis_survey
 # The server's group for the people working on this project (gid 15118 on psqdb).
 DEV_GROUP=pythonsupport
@@ -27,6 +29,15 @@ BACKUP_DIR=/var/backups/pis-survey
 KEEP_DAYS=30
 # When the daily backup runs (cron format: minute hour day month weekday).
 BACKUP_SCHEDULE='0 3 * * *'
+
+# Runs notebooks/pipeline.py, which rebuilds the processed tables and the dashboard.
+PIPELINE_USER=pis-pipeline
+# The pipeline writes the dashboard into this folder, and pis can only read it. setup.sh and
+# manage.sh update give Django the page's path as DASHBOARD_HTML in backend/.env.
+DASHBOARD_DIR=/var/lib/pis-dashboard
+DASHBOARD_HTML=$DASHBOARD_DIR/dashboard.html
+# When the pipeline runs (cron format): every hour from 8:00 to 16:00, and at midnight.
+PIPELINE_SCHEDULE='0 0,8-16 * * *'
 
 [[ $EUID -eq 0 ]] || { echo "Run this script as root (sudo)." >&2; exit 1; }
 [[ "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" == "$APP_DIR" ]] \

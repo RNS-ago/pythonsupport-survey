@@ -57,6 +57,8 @@ request instead of clicked together in a flow editor.
   QR code. The body is `{"building_number": 302, "valid_days": 7}`; the link
   records that building and stays valid for 1-365 days.
 - `/admin/`: the Django admin, for staff accounts.
+- `/admin/dashboard/`: the dashboard the notebook pipeline builds, for staff
+  accounts that may view survey responses.
 
 The code lives in `pythonsupport/survey/`; the project settings are in
 `pythonsupport/pythonsupport/settings.py`.

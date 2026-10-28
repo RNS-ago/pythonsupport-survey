@@ -1,4 +1,4 @@
-# The machine: packages, uv, the service user and the shared checkout.
+# The machine: packages, uv, the service users and the shared checkout.
 
 install_packages() {
   apt-get update
@@ -10,9 +10,9 @@ install_uv() {
     || curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin UV_NO_MODIFY_PATH=1 sh
 }
 
-create_app_user() {
-  id "$APP_USER" &>/dev/null \
-    || useradd --system --create-home --home-dir "/var/lib/$APP_USER" --shell /usr/sbin/nologin "$APP_USER"
+create_system_user() {
+  id "$1" &>/dev/null \
+    || useradd --system --create-home --home-dir "/var/lib/$1" --shell /usr/sbin/nologin "$1"
 }
 
 # Members of the group can change the checkout and run git in it; the app (pis, not a member)

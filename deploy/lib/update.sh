@@ -19,6 +19,9 @@ update_app() {
   BACKUP=
   trap '[[ $? -eq 0 ]] || rollback' EXIT
 
+  step "Settings (backend/.env)"
+  write_env_file
+
   step "Python dependencies"
   sync_deps
   manage_as root collectstatic --no-input
@@ -34,8 +37,9 @@ update_app() {
 
   step "Start"
   install_service
-  # The cron job may point at a script that has moved.
+  # The cron jobs may point at scripts that have moved.
   install_backup_cron
+  setup_pipeline
   systemctl start $SERVICE
   check_service
 

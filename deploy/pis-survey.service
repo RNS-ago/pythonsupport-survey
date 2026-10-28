@@ -1,19 +1,19 @@
-# Installed to /etc/systemd/system/ by setup.sh and manage.sh update.
-# The paths, user and port must match deploy/lib/common.sh (APP_DIR, APP_USER, PORT).
+# Installed to /etc/systemd/system/ by setup.sh and manage.sh update. install_service
+# (deploy/lib/app.sh) fills in the @...@ values from deploy/lib/common.sh.
 [Unit]
 Description=DTU Python Support survey backend (gunicorn)
 After=network.target
 
 [Service]
-User=pis
-Group=pis
-WorkingDirectory=/srv/pythonsupport-survey/backend/pythonsupport
-EnvironmentFile=/srv/pythonsupport-survey/backend/.env
+User=@APP_USER@
+Group=@APP_USER@
+WorkingDirectory=@APP_DIR@/backend/pythonsupport
+EnvironmentFile=@APP_DIR@/backend/.env
 # Only nginx talks to gunicorn, so it listens on localhost only: nginx forwards
-# https://psqdb.compute.dtu.dk to port 2810. Test mode sets PIS_BIND=0.0.0.0:2810 in .env,
+# https://psqdb.compute.dtu.dk to this port. Test mode sets PIS_BIND=0.0.0.0:<port> in .env,
 # which overrides this default.
-Environment=PIS_BIND=127.0.0.1:2810
-ExecStart=/srv/pythonsupport-survey/backend/.venv/bin/gunicorn pythonsupport.wsgi --bind ${PIS_BIND} --workers 3
+Environment=PIS_BIND=127.0.0.1:@PORT@
+ExecStart=@APP_DIR@/backend/.venv/bin/gunicorn pythonsupport.wsgi --bind ${PIS_BIND} --workers 3
 Restart=always
 
 [Install]

@@ -70,6 +70,7 @@ instead of a session. The backend decides the building from the token.
 | `POST /api/links/` | logged-in supporter | Create a one-time link |
 | `POST /api/qr-codes/` | logged-in supporter | Create a reusable QR link and its QR image |
 | `/admin/` | Django staff accounts | Browse and export the data |
+| `/admin/dashboard/` | Django staff accounts that may view survey responses | The dashboard the [notebook pipeline](operations.md#dashboard-pipeline) builds |
 
 The Analytics page in the frontend embeds a Power BI report; it does not read from this
 backend.

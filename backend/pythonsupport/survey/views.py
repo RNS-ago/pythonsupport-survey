@@ -1,11 +1,13 @@
 import json
 import secrets
 from datetime import timedelta
+from pathlib import Path
 from urllib.parse import urlencode
 
 import segno
 from django import forms
 from django.conf import settings
+from django.contrib.auth.decorators import permission_required
 from django.db import transaction
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
@@ -13,6 +15,7 @@ from django.utils import timezone
 from django.utils.crypto import constant_time_compare
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 from django.views.decorators.http import require_POST
+from django.views.static import serve
 
 from .models import SatisfactionSurveyResponse, SupporterProblemLog, SurveyLink
 
@@ -198,3 +201,18 @@ def submit_supporter_problem(request):
     if not form.is_valid():
         return JsonResponse({'errors': form.errors.get_json_data()}, status=400)
     return JsonResponse({'id': form.save().pk}, status=201)
+
+
+@permission_required('survey.view_satisfactionsurveyresponse', raise_exception=True)
+def dashboard(request):
+    """The analysts' dashboard, for whoever may view survey responses in the admin."""
+    page = Path(settings.DASHBOARD_HTML)
+    response = serve(request, page.name, document_root=page.parent)  # 404 until the pipeline has run
+    # The page counts as a separate site, so its scripts can't act with the admin's session, and it
+    # can't send its rows anywhere: no requests, form posts or outside images. Its scripts and
+    # styles are all inside the page (see the save in dashboard.ipynb).
+    response['Content-Security-Policy'] = (
+        "sandbox allow-scripts allow-downloads; default-src 'none'; script-src 'unsafe-inline'; "
+        "style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'"
+    )
+    return response
