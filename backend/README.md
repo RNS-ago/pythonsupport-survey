@@ -46,7 +46,9 @@ request instead of clicked together in a flow editor.
   CSRF token. The password must be re-entered once a day (`SESSION_COOKIE_AGE`).
 - `POST /api/responses/`: saves a response. The caller needs either an
   authorized session plus the `X-CSRFToken` header, or a one-time link `token`
-  in the body.
+  in the body. A response the device queued offline also sends `saved_at`, the
+  time it was queued; it becomes `created_at` if it is no more than 7 days old
+  and not in the future.
 - `POST /api/problem-logs/`: saves the internal supporter problem log. It uses
   the same authorized session and CSRF token as the survey. The JSON body is
   `{"problems": ["Files and Folders", "Antivirus"], "other": "Optional note"}`.

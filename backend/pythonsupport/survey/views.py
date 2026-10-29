@@ -20,6 +20,7 @@ from django.views.static import serve
 from .models import SatisfactionSurveyResponse, SupporterProblemLog, SurveyLink
 
 ONE_TIME_LINK_LIFETIME = timedelta(hours=24)
+SAVED_AT_MAX_AGE = timedelta(days=7)
 ONE_TIME_LINK_BUILDING = 'Online'
 NEED_PASSWORD = "Request a CSRF token with the survey password first."
 LINK_GONE = "This link has expired or was already used."
@@ -36,6 +37,8 @@ PROBLEM_FIELDS = {
 class SatisfactionSurveyResponseForm(forms.ModelForm):
     # The model allows null for imported rows; new submissions must answer.
     used_ai = forms.BooleanField(required=False)
+    # When a device queued the response offline (failsafe.js).
+    saved_at = forms.DateTimeField(required=False)
 
     class Meta:
         model = SatisfactionSurveyResponse
@@ -49,7 +52,12 @@ class SatisfactionSurveyResponseForm(forms.ModelForm):
         for name in ('workshop', 'used_ai'):
             if name not in self.data:
                 self.add_error(name, "This field is required.")
-        return super().clean()
+        cleaned = super().clean()
+        # The device's clock: ignored if it is ahead of ours or the response is too old to trust.
+        saved_at, now = cleaned.get('saved_at'), timezone.now()
+        if saved_at and now - SAVED_AT_MAX_AGE <= saved_at <= now:
+            self.instance.created_at = saved_at
+        return cleaned
 
 class SupporterProblemLogForm(forms.ModelForm):
     class Meta:

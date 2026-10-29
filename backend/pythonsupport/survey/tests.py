@@ -107,11 +107,28 @@ class SubmitResponseTests(TestCase):
         # The frontend sends null when the optional course is left empty.
         self.assertEqual(self.post({**VALID, 'course_number': None}).status_code, 201)
 
+    def test_queued_response_keeps_the_time_it_was_saved(self):
+        now = timezone.now()
+        five_hours_ago = (now - timedelta(hours=5)).replace(microsecond=123000)
+        for saved_at, expected in [
+            (five_hours_ago.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z', five_hours_ago),  # as toISOString() writes it
+            ((now + timedelta(hours=1)).isoformat(), None),  # device clock ahead: upload time
+            ((now - timedelta(days=8)).isoformat(), None),   # too old to trust: upload time
+        ]:
+            response = self.post({**VALID, 'saved_at': saved_at})
+            self.assertEqual(response.status_code, 201, saved_at)
+            created_at = SatisfactionSurveyResponse.objects.get(pk=response.json()['id']).created_at
+            if expected:
+                self.assertEqual(created_at, expected)
+            else:
+                self.assertGreaterEqual(created_at, now)
+
     def test_bad_payloads_are_rejected(self):
         for field, data in [
             ('workshop', without('workshop')),
             ('used_ai', without('used_ai')),
             ('course_number', {**VALID, 'course_number': 'fysik'}),
+            ('saved_at', {**VALID, 'saved_at': 'yesterday'}),
             ('satisfaction', {**VALID, 'satisfaction': 11}),
             ('student_number', {**VALID, 'student_number': '1234567'}),
             ('student_number', {**VALID, 'student_number': 'S123456'}),

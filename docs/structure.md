@@ -46,7 +46,7 @@ requests are needed.
      `POST /api/problem-logs/`.
 4. If the backend is unreachable, the supporter can continue without a code: survey
    responses are queued on the device and uploaded once the backend answers and the code
-   has been entered. Problem logs are not queued.
+   has been entered. They keep the time they were taken. Problem logs are not queued.
 
 ## Students
 

@@ -87,7 +87,7 @@ export async function retryPending() {
       let response;
       try {
         response = await fetch(endpoint, {
-          method: 'POST', credentials: 'include', headers, body: JSON.stringify(rec.payload)
+          method: 'POST', credentials: 'include', headers, body: JSON.stringify({ ...rec.payload, saved_at: rec.ts })
         });
       } catch { break; }
 
