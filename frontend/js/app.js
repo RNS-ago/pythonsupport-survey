@@ -1,6 +1,6 @@
 import { linkToken, isQrLink } from './config.js';
 import { isAuthValid, showLogin, hideLogin, wireLogin, isOfflineMode, setOfflineMode } from './auth.js';
-import { wireKiosk, isKiosk } from './kiosk.js';
+import { wireKiosk } from './kiosk.js';
 import { wireBuildingPage, showSurveyForm, showModeSelection } from './building.js';
 import { wireSurveyForm } from './survey.js';
 import { wireFailsafe } from './failsafe.js';
@@ -27,12 +27,12 @@ wireSurveyForm();
 wireFailsafe();
 wireProblemLog();
 
-document.body.classList.toggle('student-flow', !!(linkToken || isQrLink || isKiosk()));
+document.body.classList.toggle('student-flow', !!(linkToken || isQrLink));
 
 if (linkToken || isQrLink)  { hideLogin(); }
 else if (isAuthValid())     { hideLogin(); }
 else if (isOfflineMode())   { setOfflineMode(true); hideLogin(); }
 else                        { showLogin(); }
 
-if (linkToken || isQrLink || isKiosk()) showSurveyForm();
-else                                    showModeSelection();
+if (linkToken || isQrLink) showSurveyForm();
+else                       showModeSelection();

@@ -6,7 +6,6 @@ export const problemLogEndpoint = '/api/problem-logs/';
 
 export const STORAGE = {
   AUTH: 'surveySupportAuth',
-  KIOSK: 'kioskMode',
   FAILSAFE: 'surveyFailsafeQueue',
   OFFLINE: 'surveyOfflineMode',
 };

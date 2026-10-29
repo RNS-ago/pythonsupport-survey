@@ -1,6 +1,7 @@
-import { STORAGE, linkToken, isQrLink } from './config.js';
+import { linkToken, isQrLink } from './config.js';
 import { keyboardOcclusion, isKeyboardOpen, ensureVisible, openPanelFor } from './viewport.js';
 
+let __kiosk = false;
 let __wakeLock = null;
 let __wakeHandlersBound = false;
 let __vvBound = false;
@@ -118,7 +119,7 @@ function unbindVisualViewport() {
 const kioskEnterBtn = () => document.getElementById('kioskEnter');
 const kioskExitBtn  = () => document.getElementById('kioskExit');
 
-export function isKiosk(){ try { return localStorage.getItem(STORAGE.KIOSK) === '1'; } catch { return false; } }
+export function isKiosk(){ return __kiosk; }
 
 function setViewportLock(lock, scale = 1.0) {
   const vp = document.querySelector('meta[name="viewport"]');
@@ -152,7 +153,7 @@ export function applyKiosk(state){
 }
 
 export function setKiosk(v){
-  try { v ? localStorage.setItem(STORAGE.KIOSK,'1') : localStorage.removeItem(STORAGE.KIOSK); } catch {}
+  __kiosk = v;
   applyKiosk(v);
 }
 
