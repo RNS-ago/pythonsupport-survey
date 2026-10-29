@@ -32,7 +32,6 @@ export function wireProblemLog() {
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getSavedKey()[1] || '' },
         body: JSON.stringify({ problems, other: text }),
       });
-      // Offline mode or an expired session: log in again, then resubmit (the form keeps its values).
       if (isCredentialFault(resp.status)) {
         clearSavedKey();
         showLogin();

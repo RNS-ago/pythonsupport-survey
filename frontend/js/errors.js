@@ -1,7 +1,6 @@
 import { linkToken, isQrLink } from './config.js';
 
-// The backend's message in a failed response: its `error`, or its field errors joined.
-// Anything that isn't JSON, such as Django's HTML error pages, gives ''.
+// '' when the body isn't JSON, such as Django's HTML error pages.
 export async function errorText(response) {
   const data = (await response.json().catch(() => null)) || {};
   const fieldErrors = Object.values(data.errors || {}).flat().map(err => err.message || err);
@@ -15,7 +14,7 @@ export function friendlyError(text, status = 0) {
   if (text.toLowerCase().includes('link has expired')) {
     title = "Oops, this link has expired"; message = 'This one-time link has already been used or expired. Please request a new link from your supporter.';
   } else if (isQrLink && !linkToken && status === 403) {
-    // QR codes from before the token links (?b=302): the backend only takes them from a logged-in device.
+    // ?b= QR codes without a token: the backend only takes them from a logged-in device.
     title = 'This QR code no longer works'; message = 'Your response was not saved. Please ask a supporter for a new QR code.';
   } else if (status >= 500) {
     title = 'Service temporarily unavailable'; message = 'We are experiencing a temporary problem. Please try again in a minute.';

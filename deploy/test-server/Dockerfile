@@ -3,8 +3,7 @@
 FROM ubuntu:24.04
 
 ARG DEBIAN_FRONTEND=noninteractive
-# Only what a stock Ubuntu server already has (systemd, cron, tzdata) plus git and CA
-# certificates to clone the repo. setup.sh installs everything else, as it would for real.
+# A stock server's packages plus git and CA certificates; setup.sh installs the rest.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends systemd systemd-sysv cron tzdata git ca-certificates \
  && rm -rf /var/lib/apt/lists/* \

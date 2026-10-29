@@ -26,12 +26,8 @@ export function isCredentialFault(status) {
   return status === 401 || status === 403;
 }
 
-/* --------------------------------------------------- offline code override ---
- * The password can only be checked against the backend, so when the backend is
- * unreachable there is no way to verify one. In that case we
- * let them in with no code at all; every response goes to the failsafe queue
- * and is uploaded once the backend answers again and the password has been entered.
- */
+// Only the backend can check the password, so when it is unreachable supporters get in without
+// one, and responses wait in the failsafe queue.
 export function isOfflineMode() {
   try { return localStorage.getItem(STORAGE.OFFLINE) === today(); }
   catch { return false; }
@@ -60,7 +56,6 @@ export function wireLogin() {
   const submit = async () => {
     const input = document.getElementById("accessCodeInput").value.trim();
     let reachable = true;
-    // The backend answers with a CSRF token and sets the session cookie it belongs to.
     const token = await fetch(csrfEndpoint, {
       method: "POST",
       credentials: "include",

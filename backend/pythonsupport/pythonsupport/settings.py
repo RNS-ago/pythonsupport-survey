@@ -1,43 +1,29 @@
 import os
 from pathlib import Path
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ["SECRET_KEY"]
 
-# SECURITY WARNING: don't run with debug turned on in production!
-# Off unless DEBUG=1 is in the environment, so a server can't end up in debug mode by accident.
 DEBUG = os.environ.get('DEBUG') == '1'
 
 if not DEBUG:
-    # Production runs behind DTU's nginx over HTTPS, which should set X-Forwarded-Proto
-    # (see "Before you start" in docs/deployment.md). gunicorn only listens on 127.0.0.1.
+    # Behind DTU's nginx, which sets X-Forwarded-Proto (see docs/deployment.md).
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
 ALLOWED_HOSTS = os.environ['ALLOWED_HOSTS'].split()
 
-# Shared password the frontend trades for a CSRF token. Unset = nobody can submit.
+# Shared password the frontend trades for a CSRF token.
 SURVEY_PASSWORD = os.environ['SURVEY_PASSWORD']
-# The password unlocks the session, so this is how often it must be re-entered.
+# How often the password must be re-entered.
 SESSION_COOKIE_AGE = 60 * 60 * 24
 
-# The page /admin/dashboard/ shows, made by notebooks/visualization/dashboard.ipynb. On the server
-# the pipeline writes it outside the checkout (DASHBOARD_HTML in deploy/settings.env);
-# elsewhere the notebook saves it next to itself.
+# Made by notebooks/visualization/dashboard.ipynb.
 DASHBOARD_HTML = os.environ.get(
     'DASHBOARD_HTML', BASE_DIR.parent.parent / 'notebooks' / 'visualization' / 'dashboard.html'
 )
-
-
-# Application definition
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -78,13 +64,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'pythonsupport.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/6.1/ref/settings/#databases
-
 if os.environ.get('DATABASE_NAME'):
-    # The server: PostgreSQL on the same machine (DATABASE_NAME in deploy/settings.env).
-    # Connects over the local socket as the OS user running Django (pis), so no password.
+    # The server: local socket as the OS user running Django, so no password.
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -93,17 +74,12 @@ if os.environ.get('DATABASE_NAME'):
         }
     }
 else:
-    # Local development: a file next to manage.py.
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
         }
     }
-
-
-# Password validation
-# https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -120,10 +96,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
-# Internationalization
-# https://docs.djangoproject.com/en/6.1/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'Europe/Copenhagen'
@@ -132,12 +104,7 @@ USE_I18N = True
 
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/6.1/howto/static-files/
-
 STATIC_URL = 'static/'
-# collectstatic copies the admin's CSS/JS here; urls.py serves it at /static/.
 STATIC_ROOT = BASE_DIR.parent / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

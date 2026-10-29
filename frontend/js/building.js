@@ -39,7 +39,6 @@ export function showBuildingSelection(){
 export function showSurveyForm(){
   showPage('survey');
 
-  // preset the workshop answer from the link (?wd=1) or the supporter's toggle
   const preferWD = qpWD || !!document.getElementById('workshopDayToggle')?.checked;
   const yes = document.getElementById('workshop_yes');
   const no  = document.getElementById('workshop_no');
@@ -70,7 +69,6 @@ export function selectCustomBuilding(){
 }
 export function handleEnterKey(e){ if (e.key === 'Enter') selectCustomBuilding(); }
 
-// Admin controls
 async function generateOneTimeLink() {
   if (isKiosk()) return;
   try {
@@ -147,7 +145,6 @@ function wireQRModal(){
       body: JSON.stringify({ building_number: num, valid_days: days, workshop_day: qrWD.checked })
     });
     if (!resp.ok) return showError('Could not create QR. ' + await errorText(resp), resp.status);
-    // The backend builds the link and its QR image (a PNG data URI).
     const { url, qr } = await resp.json();
     qrLinkInp.value = url;
     qrImg.src = qr;
@@ -176,7 +173,7 @@ export function syncBackSelectorVisibility(){
 }
 
 export function wireBuildingPage(){
-  // global functions (for inline onclick in partial)
+  // For the partials' inline onclick handlers.
   window.selectBuilding = selectBuilding;
   window.selectCustomBuilding = selectCustomBuilding;
   window.handleEnterKey = handleEnterKey;
@@ -185,12 +182,10 @@ export function wireBuildingPage(){
   document.getElementById('btnGenerateLink')?.addEventListener('click', generateOneTimeLink);
   wireQRModal();
 
-  // sidebar events
   document.getElementById('openSidebar')?.addEventListener('click', openSidebar);
   document.getElementById('closeSidebar')?.addEventListener('click', closeSidebar);
   document.getElementById('sidebarOverlay')?.addEventListener('click', closeSidebar);
 
-  // tabs
   document.getElementById('surveyTab')?.addEventListener('click', switchToSurvey);
   document.getElementById('analyticsTab')?.addEventListener('click', switchToAnalytics);
   document.getElementById('modeSurvey')?.addEventListener('click', switchToSurvey);

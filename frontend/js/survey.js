@@ -14,7 +14,7 @@ function setupCourseAutocomplete() {
   const wrap  = input?.closest('.course-ac');
   if (!input || !list || !wrap) return;
 
-  const MAX = 50;          
+  const MAX = 50;
   let courses = [];
   let activeIndex = -1;
 
@@ -45,13 +45,10 @@ function setupCourseAutocomplete() {
   const GAP       = 12;
   let adjusting   = false; // re-entrancy guard: our own scrolling fires events
 
-  // Fit the dropdown into whatever the keyboard has left of the visual viewport,
-  // flipping it above the field when there is more room up there.
   function positionList() {
     if (list.hidden) return;
 
-    // Drop our inline cap first so we can read the one CSS defines for the
-    // current mode (16rem supporter / 22rem kiosk) and never exceed it.
+    // Clear the inline cap to read the CSS one for the current mode.
     list.style.maxHeight = '';
     const cssMax = parseFloat(getComputedStyle(list).maxHeight) || Infinity;
 
@@ -66,8 +63,7 @@ function setupCourseAutocomplete() {
     list.style.maxHeight = `${Math.round(Math.min(room, cssMax))}px`;
   }
 
-  // Size the panel, scroll field + panel clear of the keyboard, then re-size
-  // against the position we actually ended up at.
+  // Size again after scrolling, for where the field ended up.
   function reveal() {
     if (adjusting) return;
     adjusting = true;
@@ -151,8 +147,7 @@ function setupCourseAutocomplete() {
     if (!wrap.contains(e.target)) close();
   });
 
-  // The keyboard opening/closing/resizing changes the visual viewport without
-  // any scroll or input event, so re-fit the open dropdown when it does.
+  // The keyboard changes the visual viewport without any scroll or input event.
   const onViewportChange = () => { if (!list.hidden) reveal(); };
   window.visualViewport?.addEventListener('resize', onViewportChange);
   window.visualViewport?.addEventListener('scroll', onViewportChange);
@@ -178,7 +173,6 @@ async function loadCourseSchedule() {
       return;
     }
 
-    // At most 6 buttons, laid out 3 per row.
     let currentCourses = (courseSchedule[dayOfTheWeek][timeSlot] ?? []).slice(0, 6);
 
     let buttonArray = document.getElementById("course_button_array");
@@ -241,7 +235,6 @@ export function wireSurveyForm(){
   const studentNumInput = document.getElementById('student_number');
   const usernameInput   = document.getElementById('dtu_username');
 
-  // Move to satisfaction row without forcing center
   function jumpToSatisfaction() {
     const firstSmile = document.querySelector('input[name="satisfaction"]');
     if (firstSmile) {
@@ -250,8 +243,7 @@ export function wireSurveyForm(){
     }
   }
 
-  // Digits only, however they got there (typing, paste, autofill). No maxlength in the HTML,
-  // so a pasted "s123456" arrives whole and loses its 's' here instead of its last digit.
+  // No maxlength in the HTML, so a pasted "s123456" loses its 's' here instead of its last digit.
   studentNumInput.addEventListener('input', () => {
     const cleaned = studentNumInput.value.replace(/\D/g, '').slice(0, 6);
     if (studentNumInput.value !== cleaned) studentNumInput.value = cleaned;
@@ -260,7 +252,6 @@ export function wireSurveyForm(){
     if (e.key === 'Enter') { e.preventDefault(); jumpToSatisfaction(); }
   });
 
-  // Tap anywhere outside inputs to dismiss the keyboard (tablet mode only)
   document.addEventListener('pointerdown', (e) => {
     if (!isKiosk()) return;
     const t = e.target;
@@ -268,11 +259,9 @@ export function wireSurveyForm(){
     const active = document.activeElement;
     if (active && active.matches && active.matches('input, textarea, select')) {
       try { active.blur(); } catch {}
-      // no re-centering here
     }
   }, { passive: true });
 
-  // role toggle + clean abandoned field
   function toggleRole() {
     const isStudent = form.role.value === 'student';
     studentWrapper.classList.toggle('hidden', !isStudent);
@@ -308,7 +297,6 @@ export function wireSurveyForm(){
 
   let redirectOnThankYouClose = false;
 
-  // The response is safely accounted for, thank the respondent and reset.
   function accept() {
     if (linkToken) {
       thankYou.classList.remove('hidden');
@@ -351,7 +339,7 @@ export function wireSurveyForm(){
     const payload = {
       role: form.role.value,
       student_number: isStudent ? 's' + studentNumInput.value.trim() : null,
-      username:        !isStudent ? usernameInput.value.trim().toLowerCase() : null,  // the backend takes lowercase only
+      username:        !isStudent ? usernameInput.value.trim().toLowerCase() : null,
       satisfaction: Number(form.querySelector('input[name="satisfaction"]:checked').value),
       course_number: (document.getElementById('course_number').value || '').trim() || null,
       building_number: linkToken ? null : state.selectedBuilding,
@@ -411,7 +399,6 @@ export function wireSurveyForm(){
   });
 }
 
-// What to tell the user once the failsafe has taken the response.
 function savedNote(saved) {
   if (!saved?.stored)  return 'The response could not be saved — please write it down.';
   if (!isSupporterDevice) return 'Your response is saved and will be sent automatically when the connection is back.';

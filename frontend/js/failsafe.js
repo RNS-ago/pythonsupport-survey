@@ -1,23 +1,18 @@
-// Offline failsafe: a submission the backend will not take must never be
-// lost. It is queued in localStorage, re-sent automatically once the backend
-// answers again, and can be downloaded as a tab-separated file at any time.
+// A submission the backend will not take is queued in localStorage, re-sent once the backend
+// answers again, and can be downloaded as a tab-separated file.
 import { endpoint, linkToken, isQrLink, STORAGE } from './config.js';
 import { getSavedKey, clearSavedKey, isCredentialFault, showLogin } from './auth.js';
 
 const RETRY_MS     = 60_000;
 const MAX_ATTEMPTS = 20;
 
-// Only a supporter's own device has a daily code and somewhere to put a file.
-// One-time links and QR links are student flows: they carry their own
-// credentials (or none, as before) and must never see a login prompt.
+// Link and QR flows are students: they must never see a login prompt.
 const isSupporterDevice = !linkToken && !isQrLink;
 
 const COLUMNS = [
   'saved_at','role','student_number','username','satisfaction',
   'course_number','building','workshop','used_ai'
 ];
-
-/* ---------------------------------------------------------------- queue --- */
 
 function readQueue() {
   try { return JSON.parse(localStorage.getItem(STORAGE.FAILSAFE) || '[]'); }
@@ -31,7 +26,6 @@ function writeQueue(records) {
 
 const pendingCount = () => readQueue().length;
 
-/** Queue a submission that could not be delivered. */
 export function saveFailedSubmission(payload, reason = 'network error') {
   const stored = writeQueue(readQueue().concat({
     ts: new Date().toISOString(),
@@ -42,26 +36,19 @@ export function saveFailedSubmission(payload, reason = 'network error') {
   return { stored, pending: pendingCount() };
 }
 
-/* ------------------------------------------------------------- download --- */
-
 function tsv(rec) {
   const p = rec.payload || {};
   const cell = (v) => (v === null || v === undefined || v === '')
     ? '' : String(v).replace(/[\t\r\n]+/g, ' ').trim();
   return [
     rec.ts, p.role, p.student_number, p.username, p.satisfaction,
-    // building_Number: records queued before the move to the Django backend.
+    // building_Number: records queued by the old backend.
     p.course_number, p.building_number ?? p.building_Number,
     p.workshop ? 'yes' : 'no', p.used_ai ? 'yes' : 'no'
   ].map(cell).join('\t');
 }
 
-/**
- * Hand over everything still queued as one tab-separated file. Always a
- * complete snapshot, so downloading twice gives two identical copies rather
- * than two halves — nobody should lose responses to a mistimed click. Records
- * still stay queued and are re-sent as usual once the backend is back.
- */
+// Always the whole queue, so a second download is a full copy, not the rest. Records stay queued.
 export function downloadBackupFile() {
   const records = readQueue();
   if (!records.length) return 0;
@@ -76,18 +63,14 @@ export function downloadBackupFile() {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 
-  // Records the backend has refused for good will never go up, and the file is
-  // now their only home
+  // Rejected records will never go up; the file is now their only copy.
   writeQueue(records.filter(r => !r.rejected));
   notify();
   return records.length;
 }
 
-/* ------------------------------------------------------------------ retry --- */
-
 let retrying = false;
 
-/** Re-send everything queued. Records the backend rejects are kept, not retried. */
 export async function retryPending() {
   if (retrying || !navigator.onLine) return 0;
   const records = readQueue();
@@ -130,9 +113,6 @@ export async function retryPending() {
   return sent;
 }
 
-/* --------------------------------------------------------------------- UI --- */
-
-// Set by wireFailsafe: shows the number of queued responses.
 let showPending = () => {};
 function notify() { try { showPending(pendingCount()); } catch {} }
 

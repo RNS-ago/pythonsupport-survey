@@ -1,19 +1,11 @@
 #!/usr/bin/env bash
-# First-time setup of a fresh Debian/Ubuntu server. See docs/deployment.md.
+# First-time setup of a fresh Debian/Ubuntu server; safe to run again. See docs/deployment.md.
 #
-#   sudo git clone https://github.com/RNS-ago/pythonsupport-survey.git /srv/pythonsupport-survey
 #   sudo /srv/pythonsupport-survey/deploy/setup.sh psqdb.compute.dtu.dk
+#   sudo /srv/pythonsupport-survey/deploy/setup.sh --test [host]    # never in production
 #
-# Test mode, for trying the setup on a local machine or container (never in production):
-#
-#   sudo /srv/pythonsupport-survey/deploy/setup.sh --test [host]    # host defaults to localhost
-#
-# There is no nginx in front, so gunicorn serves plain HTTP on port 2810 to any machine, with
-# DEBUG=1, because without HTTPS the production session cookie (HTTPS-only) would make
-# logging in impossible.
-#
-# Safe to run again after a failure: finished steps are skipped or repeated harmlessly.
-# The steps themselves are in deploy/lib; day-to-day jobs are in manage.sh.
+# Test mode has no nginx: gunicorn serves plain HTTP to any machine, with DEBUG=1 because the
+# HTTPS-only session cookie would make logging in impossible.
 set -euo pipefail
 USAGE="usage: setup.sh <domain>  |  setup.sh --test [host]"
 if [[ ${1:-} == --test ]]; then
@@ -27,7 +19,6 @@ source "$(dirname "$0")/lib/common.sh"
 if [[ -n $TEST_MODE ]]; then URL=http://$DOMAIN:$PORT; else URL=https://$DOMAIN; fi
 
 test_mode_warning() {
-  # Bold red on a terminal, like step()'s colours; plain text when piped to a log.
   local on='' off=''
   [ -t 1 ] && { on='\033[1;31m'; off='\033[0m'; }
   printf "\n${on}!!! TEST MODE: plain HTTP, DEBUG=1, and gunicorn reachable from other machines.${off}\n"

@@ -18,8 +18,8 @@ its values win when both set the same name.
 [`deploy/settings.env`](../deploy/settings.env) is committed and holds everything that is the
 same on every server: paths, users, the database name (`DATABASE_NAME`), the port, the backup
 and pipeline schedules, and where the dashboard is written (`DASHBOARD_HTML`). The deploy scripts
-and the systemd unit read it too. Each setting is explained in the file. To change one, edit it,
-commit, and deploy with `manage.sh update`. Most of them describe the setup itself, so changing
+and the systemd unit read it too. To change one, edit it, commit, and deploy with
+`manage.sh update`. Most of them describe the setup itself, so changing
 one on a running server also means moving what it names, for example the database or the
 checkout.
 

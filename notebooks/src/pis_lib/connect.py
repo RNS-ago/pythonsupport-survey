@@ -1,17 +1,11 @@
-"""Connect a notebook to our databases.
+"""Connect a notebook to our databases. Both functions read a .env file first.
 
-get_pg_engine(): our PostgreSQL database, pis_survey. On the server (a pipeline running
-there) it uses PostgreSQL's local socket, as the account running the notebook, with no
-password. Anywhere else it connects to psqdb.compute.dtu.dk over TLS and logs in with your
-DTU account and password. The login defaults to PGUSER, else the account running the
-notebook; pass get_pg_engine("s123456") if your local account is named differently. The
-password comes from PGPASSWORD, else you are asked for it.
+get_pg_engine(): pis_survey. On the server, over the local socket with no password. Elsewhere,
+over TLS with your DTU login: PGUSER, else the local account name, or pass it
+(get_pg_engine("s123456")). The password comes from PGPASSWORD, else you are asked for it.
 
-get_ait_engine(): AIT's SQL Server with the student data, AIT_DATABASE on AIT_SERVER (needs
-SQLAlchemy 2.1 and mssql-python). The login comes only from AIT_USERNAME and AIT_PASSWORD,
-both required, with no prompts, so it can run unattended.
-
-Both read a .env file first, from the notebook's folder or above.
+get_ait_engine(): AIT's SQL Server with the student data. Needs AIT_USERNAME and AIT_PASSWORD
+and never prompts, so it can run unattended.
 """
 import os
 import socket
@@ -25,8 +19,7 @@ from sqlalchemy.engine import URL
 
 import mssql_python
 
-# The server's settings, in the checkout next to notebooks/. Use only names that mean the same
-# here as on the server: DASHBOARD_HTML, for one, is a path on the server.
+# Use only names that mean the same here as on the server: DASHBOARD_HTML is a server path.
 SETTINGS = dotenv_values(Path(__file__).resolve().parents[3] / "deploy" / "settings.env")
 
 PG_SERVER = "psqdb.compute.dtu.dk"
@@ -52,7 +45,7 @@ def get_pg_engine(user=None):
             query={
                 "sslmode": "verify-full",
                 "sslnegotiation": "direct",  # required: the nginx port only speaks direct TLS
-                "sslrootcert": certifi.where(),     # verify the server certificate
+                "sslrootcert": certifi.where(),
             },
         )
     return create_engine(url, pool_pre_ping=True)

@@ -20,7 +20,6 @@ from django.views.static import serve
 from .models import SatisfactionSurveyResponse, SupporterProblemLog, SurveyLink
 
 ONE_TIME_LINK_LIFETIME = timedelta(hours=24)
-# The old backend recorded one-time link submissions under this building too.
 ONE_TIME_LINK_BUILDING = 'Online'
 NEED_PASSWORD = "Request a CSRF token with the survey password first."
 LINK_GONE = "This link has expired or was already used."
@@ -35,8 +34,7 @@ PROBLEM_FIELDS = {
 
 
 class SatisfactionSurveyResponseForm(forms.ModelForm):
-    # The model allows used_ai empty for rows imported from the old backend;
-    # new submissions must answer it.
+    # The model allows null for imported rows; new submissions must answer.
     used_ai = forms.BooleanField(required=False)
 
     class Meta:
@@ -47,8 +45,7 @@ class SatisfactionSurveyResponseForm(forms.ModelForm):
         ]
 
     def clean(self):
-        # A missing checkbox means False to Django; for an API it means the
-        # client forgot the answer, so require the key to be present.
+        # A missing checkbox means False to Django; for an API it means a forgotten answer.
         for name in ('workshop', 'used_ai'):
             if name not in self.data:
                 self.add_error(name, "This field is required.")
@@ -68,9 +65,9 @@ class SupporterProblemLogForm(forms.ModelForm):
 
 
 class QrCodeForm(forms.Form):
-    building_number = forms.IntegerField(min_value=0, max_value=990)  # the QR dialog's range
+    building_number = forms.IntegerField(min_value=0, max_value=990)
     valid_days = forms.IntegerField(min_value=1, max_value=365)
-    workshop_day = forms.BooleanField(required=False)  # adds wd=1, which presets "workshop: yes"
+    workshop_day = forms.BooleanField(required=False)
 
 
 def read_json_object(request):
@@ -81,7 +78,7 @@ def read_json_object(request):
         return None
     return payload if isinstance(payload, dict) else None
 
-# Exempt because the caller has no token yet; handing one out is the point.
+# Exempt: the caller has no token yet.
 @csrf_exempt
 @require_POST
 def request_csrf_token(request):
@@ -91,8 +88,7 @@ def request_csrf_token(request):
         return JsonResponse({'error': "Wrong password."}, status=403)
 
     request.session.cycle_key()
-    # Django never checks that a CSRF cookie was issued by the server, so the
-    # token alone proves nothing; this flag is what the password unlocks.
+    # Django never checks who issued a CSRF cookie, so the token alone proves nothing.
     request.session['survey_authorized'] = True
     return JsonResponse({'csrfToken': get_token(request)})
 
@@ -117,7 +113,6 @@ def issue_qr_code(request):
         building_number=str(form.cleaned_data['building_number']), single_use=False,
     )
     query = {'t': link.token, **({'wd': 1} if form.cleaned_data['workshop_day'] else {})}
-    # The survey page is the site's root; behind nginx this is https://<domain>/?t=...
     url = request.build_absolute_uri('/?' + urlencode(query))
     # make_qr, not make: never a Micro QR code, which not every phone camera reads.
     qr = segno.make_qr(url, error='m').png_data_uri(scale=8, border=2)
@@ -126,12 +121,11 @@ def issue_qr_code(request):
 
 def create_link(lifetime, **fields):
     now = timezone.now()
-    SurveyLink.objects.filter(expires_at__lte=now).delete()  # dead links are never needed again
+    SurveyLink.objects.filter(expires_at__lte=now).delete()
     return SurveyLink.objects.create(token=secrets.token_urlsafe(), expires_at=now + lifetime, **fields)
 
 
-# Exempt because a link's student has no session or CSRF token; the link token
-# is their credential. Everyone else is CSRF-checked in submit_with_session.
+# Exempt: the link token is the student's credential. Sessions are checked in submit_with_session.
 @csrf_exempt
 @require_POST
 def submit_response(request):
@@ -174,7 +168,6 @@ def save_response(data, single_use_link=None):
 @require_POST
 @csrf_protect
 def submit_supporter_problem(request):
-    """Save one internal supporter problem log using the existing staff session."""
     if not request.session.get('survey_authorized'):
         return JsonResponse({'error': NEED_PASSWORD}, status=403)
 
@@ -205,12 +198,9 @@ def submit_supporter_problem(request):
 
 @permission_required('survey.view_satisfactionsurveyresponse', raise_exception=True)
 def dashboard(request):
-    """The analysts' dashboard, for whoever may view survey responses in the admin."""
     page = Path(settings.DASHBOARD_HTML)
     response = serve(request, page.name, document_root=page.parent)  # 404 until the pipeline has run
-    # The page counts as a separate site, so its scripts can't act with the admin's session, and it
-    # can't send its rows anywhere: no requests, form posts or outside images. Its scripts and
-    # styles are all inside the page (see the save in dashboard.ipynb).
+    # A separate origin that can't send its rows anywhere; everything it needs is inline.
     response['Content-Security-Policy'] = (
         "sandbox allow-scripts allow-downloads; default-src 'none'; script-src 'unsafe-inline'; "
         "style-src 'unsafe-inline'; img-src data: blob:; form-action 'none'"

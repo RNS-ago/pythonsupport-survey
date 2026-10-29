@@ -29,7 +29,7 @@ including the frontend files (see `backend/pythonsupport/pythonsupport/urls.py`)
 nginx side is described in [nginx](nginx.md).
 
 The frontend and the API are served from the same address, so the frontend calls the
-API with relative URLs (`apiBase = ""` in `frontend/js/config.js`). No cross-origin
+API with relative URLs (see `frontend/js/config.js`). No cross-origin
 requests are needed.
 
 ## Supporters

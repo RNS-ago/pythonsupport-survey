@@ -5,11 +5,10 @@ from django.views.static import serve
 
 from survey import views
 
-# repo/frontend, next to repo/backend
 FRONTEND_DIR = settings.BASE_DIR.parent.parent / 'frontend'
 
 urlpatterns = [
-    # Before admin/, which would answer it with a 404. admin_view lets in only logged-in staff.
+    # Before admin/, which would answer it with a 404.
     path('admin/dashboard/', admin.site.admin_view(views.dashboard), name='dashboard'),
     path('admin/', admin.site.urls),
     path('api/csrf/', views.request_csrf_token),
@@ -17,8 +16,7 @@ urlpatterns = [
     path('api/problem-logs/', views.submit_supporter_problem),
     path('api/links/', views.issue_link),
     path('api/qr-codes/', views.issue_qr_code),
-    # On the server, nginx (managed by DTU) forwards every request here, so Django serves the
-    # admin's CSS/JS and the frontend itself. In development, runserver serves /static/ first.
+    # nginx forwards every request here, so Django serves static files and the frontend itself.
     # ponytail: django's serve() is slow; add WhiteNoise if traffic grows.
     re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
     # Frontend last, so the API and admin routes win.

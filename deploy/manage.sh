@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Day-to-day jobs on the server, after setup.sh. See docs/deployment.md and docs/operations.md.
+# Day-to-day jobs on the server, after setup.sh. See docs/operations.md.
 #
 #   sudo /srv/pythonsupport-survey/deploy/manage.sh update [branch]   # deploy a branch (default: main)
 #   sudo /srv/pythonsupport-survey/deploy/manage.sh backup            # dump the database (also daily from cron)

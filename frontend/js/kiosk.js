@@ -1,12 +1,8 @@
 import { STORAGE, linkToken, isQrLink } from './config.js';
 import { keyboardOcclusion, isKeyboardOpen, ensureVisible, openPanelFor } from './viewport.js';
 
-// --- WAKE LOCK SUPPORT ---
-// Screen Wake Lock API: Safari since iPadOS 16.4, Chrome since 84. Elsewhere the screen may sleep.
 let __wakeLock = null;
 let __wakeHandlersBound = false;
-
-// VisualViewport keyboard offset helpers
 let __vvBound = false;
 let __kbdOpen = false;
 let __lastOcclusion = -1;
@@ -50,12 +46,10 @@ async function ensureOrientation() {
   } catch {}
 }
 
-// --- VisualViewport-aware keyboard offset (tablet mode) ---
 function isTextField(el) {
   return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT');
 }
 
-// Scroll the focused field (and its open dropdown, if any) clear of the keyboard.
 export function keepFocusVisible(behavior = 'auto') {
   const ae = document.activeElement;
   if (!isTextField(ae)) return;
@@ -66,8 +60,7 @@ function updateKbdOffset() {
   if (!isKiosk()) return;
   if (!window.visualViewport) return;
 
-  // Expose the occlusion to CSS so #surveyPage can pad its bottom, which is what
-  // gives us the room to scroll the lower fields above the keyboard at all.
+  // #surveyPage pads its bottom by this, making room to scroll lower fields above the keyboard.
   const occlusion = keyboardOcclusion();
   const changed = occlusion !== __lastOcclusion;
   __lastOcclusion = occlusion;
@@ -83,14 +76,12 @@ function updateKbdOffset() {
   } else if (!nowOpen && __kbdOpen) {
     __kbdOpen = false;
   } else if (nowOpen && changed) {
-    // Keyboard resized (language switch, prediction bar) — re-check. Guarded on
-    // `changed` so plain scrolling doesn't snap the page back at the user.
+    // Keyboard resized. Only on change, so plain scrolling doesn't snap the page back.
     keepFocusVisible('auto');
   }
 }
 
-// Moving between fields with the keyboard already up doesn't resize the visual
-// viewport, so focus changes need their own pass.
+// Moving between fields with the keyboard up doesn't resize the visual viewport.
 function onKioskFocusIn() {
   if (!isKiosk() || !__kbdOpen) return;
   requestAnimationFrame(() => keepFocusVisible('smooth'));
@@ -104,7 +95,7 @@ function bindVisualViewport() {
     window.addEventListener('resize', updateKbdOffset);
     document.addEventListener('focusin', onKioskFocusIn);
     __vvBound = true;
-    updateKbdOffset(); // init
+    updateKbdOffset();
   } catch {}
 }
 
@@ -124,7 +115,6 @@ function unbindVisualViewport() {
   try { document.documentElement.style.removeProperty('--kbd-offset'); } catch {}
 }
 
-// --- Kiosk plumbing ---
 const kioskEnterBtn = () => document.getElementById('kioskEnter');
 const kioskExitBtn  = () => document.getElementById('kioskExit');
 
@@ -145,15 +135,10 @@ export function applyKiosk(state){
     try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{}); } catch {}
     try { const el=document.documentElement; if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen().catch(()=>{}); } catch {}
     window.scrollTo(0,0);
-
-    // Always-on + resilience
     requestWakeLock();
     bindWakeLockWatchers();
-
-    // Keyboard-safe padding & nudge
     bindVisualViewport();
-
-    // iPad/Samsung UI bars animation settle
+    // Again once the iPad/Samsung UI bars have settled.
     setTimeout(() => { try { ensureFullscreen(); ensureOrientation(); updateKbdOffset(); } catch {} }, 400);
   } else {
     document.body.classList.remove('kiosk-mode');
@@ -172,10 +157,8 @@ export function setKiosk(v){
 }
 
 export function wireKiosk() {
-  // enter
   kioskEnterBtn()?.addEventListener('click', ()=> setKiosk(true));
 
-  // exit by 5 taps (top-right)
   let taps = 0, timer = null;
   const reset = ()=>{ taps = 0; if (timer) { clearTimeout(timer); timer = null; } };
   const handleTap = ()=>{ taps += 1; if (!timer) { timer = setTimeout(reset, 1500); } if (taps >= 5) { reset(); setKiosk(false); } };
@@ -183,7 +166,6 @@ export function wireKiosk() {
   kioskExitBtn()?.addEventListener('click', handleTap, {passive:true});
   kioskExitBtn()?.addEventListener('touchstart', (e)=>{ e.preventDefault(); handleTap(); }, {passive:false});
 
-  // block navigation keys in kiosk
   window.addEventListener('keydown', (e)=>{
     if (!isKiosk()) return;
     const tag = (e.target && e.target.tagName) || '';
@@ -197,15 +179,14 @@ export function wireKiosk() {
 
   window.addEventListener('contextmenu', (e)=>{ if (isKiosk()) e.preventDefault(); });
 
-// If fullscreen ends by any means, cleanly exit kiosk mode to avoid a "stuck" state
+// Leaving fullscreen by any means exits kiosk mode, so it never gets stuck.
 function fsChange(){
   if (isKiosk() && !document.fullscreenElement) {
-    setKiosk(false);   // drop kiosk-mode and all its locks
+    setKiosk(false);
   }
 }
 document.addEventListener('fullscreenchange', fsChange);
 document.addEventListener('webkitfullscreenchange', fsChange);
-  // initial FAB visibility
   syncFabVisibility();
 }
 
@@ -227,16 +208,14 @@ function onVisibilityChange() { if (isKiosk() && document.visibilityState === 'v
 function onWindowFocus()      { if (isKiosk()) { tryReacquireWakeLockSoon(); updateKbdOffset(); } }
 function onOrientationChange(){ if (isKiosk()) { ensureOrientation(); setTimeout(updateKbdOffset, 100); } }
 
-// Ensure the "Enter Tablet mode" FAB appears whenever the survey is visible
 export function syncFabVisibility() {
   const btn = document.getElementById('kioskEnter');
   if (!btn) return;
 
-  // Students coming via Discord/QR (token or building in URL) never see the FAB
   const tokenMode = !!(linkToken || isQrLink);
 
-  const sc = document.getElementById('surveyContainer'); // container that gets toggled
-  const sp = document.getElementById('surveyPage');      // inner partial
+  const sc = document.getElementById('surveyContainer');
+  const sp = document.getElementById('surveyPage');
 
   const containerVisible = sc && !sc.classList.contains('hidden');
   const innerVisible     = !sp || !sp.classList.contains('hidden');

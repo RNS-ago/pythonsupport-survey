@@ -1,7 +1,5 @@
-# Deploy the latest code of a branch. See "Updating" in docs/deployment.md.
-#
-# If any step after pulling fails, the previous code (and, once migrations have started,
-# the database from the backup taken just before) is put back and the old version restarted.
+# If a step after pulling fails, rollback restores the previous code and, once migrations have
+# started, the database.
 
 update_app() {
   local branch=$1
@@ -12,7 +10,7 @@ update_app() {
     git fetch origin
     git checkout "$branch"
     git pull --ff-only origin "$branch"
-    # Re-exec the freshly pulled script, so changes to the deploy scripts apply to this run.
+    # Re-exec, so changes to the deploy scripts apply to this run.
     PIS_UPDATE_FROM=$from exec "$APP_DIR/deploy/manage.sh" update "$branch"
   fi
 
@@ -23,13 +21,11 @@ update_app() {
   sync_deps
   manage_as root collectstatic --no-input
 
-  # Stop the app while migrating, so no response written in the meantime is lost if the
-  # backup has to be restored. Supporters' devices queue survey responses while it is down.
+  # Stopped, so a restore can't lose responses. Supporters' devices queue them meanwhile.
   step "Backup and migrations"
   systemctl stop $SERVICE
   BACKUP=$(backup_db)
   manage_as "$APP_USER" migrate
-  # New Django tables get their rights.
   apply_db_permissions
 
   step "Start"

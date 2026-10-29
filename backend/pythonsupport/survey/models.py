@@ -36,10 +36,7 @@ class SatisfactionSurveyResponse(models.Model):
 
 
 class SurveyLink(models.Model):
-    """A survey link a supporter hands out: a one-time link for Discord, or a QR code for a building.
-
-    Responses through a link get the link's building. A single-use link is deleted once used.
-    """
+    """A one-time link for Discord, or a QR code for a building."""
 
     token = models.CharField(max_length=43, primary_key=True)
     building_number = models.CharField(max_length=10)
@@ -48,8 +45,6 @@ class SurveyLink(models.Model):
 
 
 class SupporterProblemLog(models.Model):
-    """Log of problems reported by supporters."""
-
     files_and_folders = models.BooleanField(default=False)
     trust_issues_vs_code = models.BooleanField(default=False)
     ms_powershell_mini_forge_prompt = models.BooleanField(default=False)
