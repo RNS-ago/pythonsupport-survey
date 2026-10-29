@@ -42,7 +42,7 @@ function setupCourseAutocomplete() {
   }
 
   const LIST_MIN  = 96;    // never squash below ~2 suggestions
-  const GAP       = 12;
+  const GAP       = 16;    // ensureVisible's 12px margin + the list's 4px offset from the field
   let adjusting   = false; // re-entrancy guard: our own scrolling fires events
 
   function positionList() {
