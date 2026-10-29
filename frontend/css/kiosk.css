@@ -25,26 +25,3 @@ body.kiosk-mode header {
 }
 
 body.student-flow header { display: none !important; }
-
-body.kiosk-mode #surveyPage,
-body.kiosk-mode.student-flow #surveyPage {
-  padding: 1rem !important;
-  padding-bottom: calc(1rem + var(--kbd-offset, 0px)) !important;
-  /* No header in tablet mode, so centre in the full viewport. */
-  min-height: 100vh !important;
-}
-@supports (min-height: 100dvh) {
-  body.kiosk-mode #surveyPage,
-  body.kiosk-mode.student-flow #surveyPage { min-height: 100dvh !important; }
-}
-
-body.kiosk-mode #surveyCard,
-body.kiosk-mode.student-flow #surveyCard {
-  max-width: 72rem !important;
-  width: 100% !important;
-  /* A vertical margin pushes the form past the viewport and breaks centring. */
-  margin: 0 auto !important;
-  border-radius: 0.75rem !important;
-  box-shadow: 0 10px 25px rgba(17,24,39,.12) !important;
-  min-height: auto !important;
-}
