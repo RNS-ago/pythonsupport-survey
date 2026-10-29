@@ -42,8 +42,7 @@ function tsv(rec) {
     ? '' : String(v).replace(/[\t\r\n]+/g, ' ').trim();
   return [
     rec.ts, p.role, p.student_number, p.username, p.satisfaction,
-    // building_Number: records queued by the old backend.
-    p.course_number, p.building_number ?? p.building_Number,
+    p.course_number, p.building_number,
     p.workshop ? 'yes' : 'no', p.used_ai == null ? '' : p.used_ai ? 'yes' : 'no'
   ].map(cell).join('\t');
 }
