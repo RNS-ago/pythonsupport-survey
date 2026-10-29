@@ -8,8 +8,6 @@ course_number_format = RegexValidator(r'^[0-9]{5}\b', "Course must start with it
 
 
 class SatisfactionSurveyResponse(models.Model):
-    """One submitted survey. Rows imported from the old backend may lack course and used_ai."""
-
     # Students give a student number, staff give their initials; exactly one is set.
     student_number = models.CharField(max_length=7, blank=True, validators=[student_number_format])
     username = models.CharField(max_length=32, blank=True, validators=[username_format])

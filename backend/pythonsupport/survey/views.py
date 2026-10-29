@@ -35,8 +35,6 @@ PROBLEM_FIELDS = {
 
 
 class SatisfactionSurveyResponseForm(forms.ModelForm):
-    # The model allows null for imported rows; new submissions must answer.
-    used_ai = forms.BooleanField(required=False)
     # When a device queued the response offline (failsafe.js).
     saved_at = forms.DateTimeField(required=False)
 
@@ -49,9 +47,8 @@ class SatisfactionSurveyResponseForm(forms.ModelForm):
 
     def clean(self):
         # A missing checkbox means False to Django; for an API it means a forgotten answer.
-        for name in ('workshop', 'used_ai'):
-            if name not in self.data:
-                self.add_error(name, "This field is required.")
+        if 'workshop' not in self.data:
+            self.add_error('workshop', "This field is required.")
         cleaned = super().clean()
         # The device's clock: ignored if it is ahead of ours or the response is too old to trust.
         saved_at, now = cleaned.get('saved_at'), timezone.now()

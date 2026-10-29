@@ -44,7 +44,7 @@ function tsv(rec) {
     rec.ts, p.role, p.student_number, p.username, p.satisfaction,
     // building_Number: records queued by the old backend.
     p.course_number, p.building_number ?? p.building_Number,
-    p.workshop ? 'yes' : 'no', p.used_ai ? 'yes' : 'no'
+    p.workshop ? 'yes' : 'no', p.used_ai == null ? '' : p.used_ai ? 'yes' : 'no'
   ].map(cell).join('\t');
 }
 

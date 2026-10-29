@@ -104,8 +104,10 @@ class SubmitResponseTests(TestCase):
         saved = SatisfactionSurveyResponse.objects.get()
         self.assertEqual(response.json()['id'], saved.pk)
         self.assertIs(saved.workshop, False)
-        # The frontend sends null when the optional course is left empty.
-        self.assertEqual(self.post({**VALID, 'course_number': None}).status_code, 201)
+        # The frontend sends null for the optional course and AI questions when left empty.
+        response = self.post({**VALID, 'course_number': None, 'used_ai': None})
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(SatisfactionSurveyResponse.objects.get(pk=response.json()['id']).used_ai)
 
     def test_queued_response_keeps_the_time_it_was_saved(self):
         now = timezone.now()
@@ -126,7 +128,6 @@ class SubmitResponseTests(TestCase):
     def test_bad_payloads_are_rejected(self):
         for field, data in [
             ('workshop', without('workshop')),
-            ('used_ai', without('used_ai')),
             ('course_number', {**VALID, 'course_number': 'fysik'}),
             ('saved_at', {**VALID, 'saved_at': 'yesterday'}),
             ('satisfaction', {**VALID, 'satisfaction': 11}),
