@@ -103,7 +103,9 @@ function setupCourseAutocomplete() {
       li.id = `course-ac-opt-${i}`;
       li.setAttribute('role', 'option');
       li.textContent = val;
-      li.addEventListener('pointerdown', (e) => { e.preventDefault(); choose(val); });
+      // Not on pointerdown: a finger that starts a scroll would pick the item under it.
+      li.addEventListener('mousedown', (e) => e.preventDefault());  // keeps the focus in the field
+      li.addEventListener('click', () => choose(val));
       frag.appendChild(li);
     });
     list.appendChild(frag);
