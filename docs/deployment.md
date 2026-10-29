@@ -172,5 +172,6 @@ fails, it rolls back: it restores the database from the backup it just made (if 
 had started), checks out the previous commit and starts that version again. The checkout is
 then on a detached commit; the next `manage.sh update` returns to the branch.
 
-Frontend changes are live as soon as the code is pulled. Tablets in kiosk mode may keep
-old files cached until they reload the page.
+Frontend changes are live as soon as the code is pulled. The frontend is served with
+`Cache-Control: no-cache`, so browsers check for a newer copy on every load; a page that is
+already open keeps running the old files until it is reloaded.

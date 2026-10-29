@@ -187,6 +187,17 @@ class SupporterProblemLogTests(TestCase):
         self.assertFalse(SupporterProblemLog.objects.exists())
 
 
+class FrontendTests(TestCase):
+    def test_browsers_revalidate_every_load(self):
+        for url in ('/', '/js/app.js'):
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response['Cache-Control'], 'no-cache')
+            response.close()
+        modified = self.client.get('/js/app.js')['Last-Modified']
+        self.assertEqual(self.client.get('/js/app.js', HTTP_IF_MODIFIED_SINCE=modified).status_code, 304)
+
+
 class DashboardTests(TestCase):
     def setUp(self):
         self.page = Path(self.enterContext(tempfile.TemporaryDirectory())) / 'dashboard.html'
