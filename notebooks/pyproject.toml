@@ -25,3 +25,8 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "pis_lib"  # src/pis_lib, not src/notebooks
+
+[dependency-groups]
+dev = [
+    "nbstripout>=0.9.1",
+]

@@ -58,7 +58,9 @@ Students never log in. A supporter creates a link for them:
 | "QR" button | `POST /api/qr-codes/` | `?t=…` | 1–365 days, reusable, fixed building |
 
 The student's survey posts to `POST /api/responses/` with the link's token in the body
-instead of a session. The backend decides the building from the token.
+instead of a session. The backend decides the building from the token. Student devices
+have no offline queue: if the backend can't be reached, the form keeps its answers and the
+student submits again.
 
 ## Endpoints
 
@@ -71,6 +73,3 @@ instead of a session. The backend decides the building from the token.
 | `POST /api/qr-codes/` | logged-in supporter | Create a reusable QR link and its QR image |
 | `/admin/` | Django staff accounts | Browse and export the data |
 | `/admin/dashboard/` | Django staff accounts that may view survey responses | The dashboard the [notebook pipeline](operations.md#dashboard-pipeline) builds |
-
-The Analytics page in the frontend embeds a Power BI report; it does not read from this
-backend.

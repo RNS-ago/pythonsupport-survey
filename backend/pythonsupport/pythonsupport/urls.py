@@ -24,5 +24,6 @@ urlpatterns = [
     re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
     # Frontend last, so the API and admin routes win.
     path('', serve_frontend, {'document_root': FRONTEND_DIR, 'path': 'index.html'}),
-    re_path(r'^(?P<path>.*)$', serve_frontend, {'document_root': FRONTEND_DIR}),
+    # Files only (every frontend file has an extension), so Django can add a missing slash to /admin.
+    re_path(r'^(?P<path>.+\.\w+)$', serve_frontend, {'document_root': FRONTEND_DIR}),
 ]

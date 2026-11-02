@@ -3,7 +3,7 @@ import { getSavedKey, isAuthValid, clearSavedKey, isCredentialFault } from './au
 import { showError, friendlyError, errorText } from './errors.js';
 import { syncFabVisibility, isKiosk } from './kiosk.js';
 import { visualViewportBox, ensureVisible } from './viewport.js';
-import { saveFailedSubmission } from './failsafe.js';
+import { saveFailedSubmission, SUBMIT_TIMEOUT_MS } from './failsafe.js';
 
 const isSupporterDevice = !linkToken && !isQrLink;
 
@@ -203,7 +203,18 @@ async function loadCourseSchedule() {
 }
 
 
+function lockForm(error, status) {
+  showError(error, status);
+  document.querySelectorAll('#surveyForm input, #surveyForm select, #surveyForm textarea, #surveyForm button')
+    .forEach(el => { if (el.id !== 'closeErrorModal') el.disabled = true; });
+}
+
 export async function verifyOneTimeToken() {
+  // Old ?b= posters have no token, so only a logged-in supporter's device can still submit them.
+  if (isQrLink && !linkToken && !isAuthValid()) {
+    lockForm({ title: 'This QR code no longer works', message: 'Please ask a supporter for a new QR code.' });
+    return false;
+  }
   if (!linkToken) return true;
   try {
     const resp = await fetch(endpoint, {
@@ -212,9 +223,9 @@ export async function verifyOneTimeToken() {
       body: JSON.stringify({ ping: true, token: linkToken })
     });
     if (!resp.ok) {
-      showError('Oops, this link has expired. Please request a new one-time link from your supporter.', resp.status);
-      document.querySelectorAll('#surveyForm input, #surveyForm select, #surveyForm textarea, #surveyForm button')
-        .forEach(el => { if (el.id !== 'closeErrorModal') el.disabled = true; });
+      // A server error says nothing about the link; the form keeps its answers if a submit fails.
+      if (resp.status !== 403) { showError('', resp.status); return true; }
+      lockForm('Oops, this link has expired. Please request a new one-time link from your supporter.', resp.status);
       return false;
     }
     return true;
@@ -358,7 +369,10 @@ export function wireSurveyForm(){
       }
 
       const headers = { "Content-Type": "application/json", "X-CSRFToken": getSavedKey()[1] || "" };
-      const response = await fetch(endpoint, { method: "POST", credentials: "include", headers, body: JSON.stringify(payload) });
+      const response = await fetch(endpoint, {
+        method: "POST", credentials: "include", headers, body: JSON.stringify(payload),
+        signal: AbortSignal.timeout?.(SUBMIT_TIMEOUT_MS),
+      });
 
       if (response.ok) {
         accept();
@@ -373,19 +387,23 @@ export function wireSurveyForm(){
         }
 
         const { title, message } = friendlyError(raw, response.status);
-        const keepable = response.status >= 500 || response.status === 429;
+        // Students' phones never queue: the form stays filled for them to submit again.
+        const keepable = isSupporterDevice && (response.status >= 500 || response.status === 429);
         const saved = keepable
           ? saveFailedSubmission(payload, `HTTP ${response.status}`)
           : null;
-        showError({ title, message: saved ? `${message} ${savedNote(saved)}` : message }, response.status);
+        // Queued counts as sent: a form left filled invites a second copy via "Try Again".
+        if (saved?.stored) { accept(); return; }
+        showError({ title, message: saved ? `${message} ${NOT_SAVED}` : message }, response.status);
         if (form.role.value === 'student') { studentNumInput.focus(); } else { usernameInput?.focus(); }
       }
     } catch (err) {
       console.error("submit failed:", err);
-      const saved = saveFailedSubmission(payload, err?.message || 'network error');
+      const saved = isSupporterDevice ? saveFailedSubmission(payload, err?.message || 'network error') : null;
+      if (saved?.stored) { accept(); return; }
       showError({
         title: "We couldn't reach the server",
-        message: `A network error occurred. ${savedNote(saved)}`
+        message: `A network error occurred. ${saved ? NOT_SAVED : 'Check your connection and try again.'}`
       });
     } finally {
       submitButton.disabled = false;
@@ -401,8 +419,4 @@ export function wireSurveyForm(){
   });
 }
 
-function savedNote(saved) {
-  if (!saved?.stored)  return 'The response could not be saved — please write it down.';
-  if (!isSupporterDevice) return 'Your response is saved and will be sent automatically when the connection is back.';
-  return 'The response is saved on this device and will be sent automatically when the connection is back. Use “Download backup file” to also keep a copy.';
-}
+const NOT_SAVED = 'The response could not be saved — please write it down.';

@@ -68,7 +68,6 @@ def get_ait_engine():
         f"UID={_quote(os.environ['AIT_USERNAME'])};"
         f"PWD={_quote(os.environ['AIT_PASSWORD'])};"
         "Encrypt=yes;"
-        "TrustServerCertificate=yes;"
     )
 
     return create_engine("mssql+mssqlpython://", creator=lambda: mssql_python.connect(conn_str))

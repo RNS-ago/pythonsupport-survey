@@ -10,14 +10,17 @@ setup_database() {
 }
 
 apply_db_permissions() {
-  pg_admin -1 -d "$DATABASE_NAME" -v analyst="$ANALYST_ROLE" -v viewer="$VIEWER_ROLE" -v app_user="$APP_USER" \
+  pg_admin -1 -d "$DATABASE_NAME" -v analyst="$ANALYST_ROLE" -v viewer="$VIEWER_ROLE" \
     < deploy/db-permissions.sql
 }
 
 # nginx terminates TLS, so logins arrive as plain "host" connections from its address ("hostssl"
 # never matches). Allowing only that address stops anyone skipping TLS. Check it remotely with
 # SELECT inet_client_addr();
-HBA_LINE=${HBA_LINE:-'host all all 127.0.0.1/32 pam pamservice=postgresql'}
+# PAM would let a DTU account named like a service role in as that role, so those are refused
+# first. Django and the pipeline use the local socket, which "host" lines don't cover.
+HBA_LINES="host all $APP_USER,$PIPELINE_USER,postgres 127.0.0.1/32 reject
+host $DATABASE_NAME all 127.0.0.1/32 pam pamservice=postgresql"
 
 setup_pam_auth() {
   # root-owned: whoever can edit it can make every password succeed.
@@ -30,8 +33,9 @@ EOF
   local hba
   hba=$(pg_admin -c 'SHOW hba_file')
   cp -p "$hba" "$hba.bak"
-  if ! grep -qxF "$HBA_LINE" "$hba"; then
-    awk -v l="$HBA_LINE" '!done && /^host/ {print l; done=1} {print} END {if (!done) print l}' "$hba" > "$hba.new"
+  if ! grep -qxF "${HBA_LINES%%$'\n'*}" "$hba"; then
+    HBA_LINES=$HBA_LINES awk '!done && /^host/ {print ENVIRON["HBA_LINES"]; done=1} {print}
+                              END {if (!done) print ENVIRON["HBA_LINES"]}' "$hba" > "$hba.new"
     cat "$hba.new" > "$hba" && rm "$hba.new"   # cat keeps the file's owner and mode
   fi
 

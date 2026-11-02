@@ -2,7 +2,9 @@
 # Django could plant there.
 
 # Overlapping runs are skipped (exit 75) and hung ones stopped. The lock is where pis can't take it.
-PIPELINE_RUN="flock -n -E 75 /var/lib/$PIPELINE_USER/pipeline.lock timeout 30m \
+# manage.sh holds it too, so a run never overlaps an update, rollback or backup.
+PIPELINE_LOCK=/var/lib/$PIPELINE_USER/pipeline.lock
+PIPELINE_RUN="flock -n -E 75 $PIPELINE_LOCK timeout 10m \
 env DASHBOARD_HTML=$DASHBOARD_HTML $APP_DIR/notebooks/.venv/bin/python $APP_DIR/notebooks/pipeline.py"
 
 # Needs apply_db_permissions to have run.
@@ -17,5 +19,5 @@ setup_pipeline() {
 run_pipeline() {
   # Unquoted on purpose: PIPELINE_RUN is a command with its arguments.
   sudo -u "$PIPELINE_USER" -H $PIPELINE_RUN \
-    || { local status=$?; [[ $status -ne 75 ]] || echo "Another pipeline run is still going." >&2; return $status; }
+    || { local status=$?; [[ $status -ne 75 ]] || echo "Another pipeline run or manage.sh job is still going." >&2; return $status; }
 }

@@ -11,7 +11,7 @@ export function openSidebar(){ if (!isKiosk()) { sidebar().classList.remove('-tr
 export function closeSidebar(){ sidebar().classList.add('-translate-x-full'); overlay().classList.add('hidden'); document.body.classList.remove('overflow-hidden'); }
 
 // Each page has an outer container (index.html) and an inner page (partial); show one, hide the rest.
-const PAGES = ['modeSelection', 'buildingSelection', 'survey', 'analytics', 'problemLog'];
+const PAGES = ['modeSelection', 'buildingSelection', 'survey', 'problemLog'];
 function showPage(name){
   for (const p of PAGES) {
     document.getElementById(`${p}Container`).classList.toggle('hidden', p !== name);
@@ -43,13 +43,6 @@ export function showSurveyForm(){
   const yes = document.getElementById('workshop_yes');
   const no  = document.getElementById('workshop_no');
   if (yes && no) { yes.checked = !!preferWD; no.checked = !preferWD; }
-}
-
-export function switchToAnalytics(e){
-  if (e) e.preventDefault();
-  if (isKiosk() || linkToken) return;
-  showPage('analytics');
-  closeSidebar();
 }
 
 export function switchToSurvey(e){
@@ -130,8 +123,8 @@ function wireQRModal(){
   async function create(){
     if (isKiosk()) return;
     const val = qrBuildingInp.value.trim(); const num = Number(val);
-    if (val==='' || isNaN(num) || num<0 || num>990){
-      inlineErr.textContent='Please enter a valid building between 000 and 990 or use a quick option.';
+    if (val==='' || isNaN(num) || num<101 || num>499){
+      inlineErr.textContent='Please enter a valid building between 101 and 499 or use a quick option.';
       inlineErr.classList.remove('hidden'); return;
     }
     const days = Number(qrDaysInp.value);
@@ -187,7 +180,6 @@ export function wireBuildingPage(){
   document.getElementById('sidebarOverlay')?.addEventListener('click', closeSidebar);
 
   document.getElementById('surveyTab')?.addEventListener('click', switchToSurvey);
-  document.getElementById('analyticsTab')?.addEventListener('click', switchToAnalytics);
   document.getElementById('modeSurvey')?.addEventListener('click', switchToSurvey);
   document.getElementById('modeProblemLog')?.addEventListener('click', showProblemLog);
   document.getElementById('modeTab')?.addEventListener('click', e => { e.preventDefault(); showModeSelection(); closeSidebar(); });

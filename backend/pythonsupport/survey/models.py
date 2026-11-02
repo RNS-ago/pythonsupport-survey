@@ -4,16 +4,20 @@ from django.utils import timezone
 
 student_number_format = RegexValidator(r'^s[0-9]{6}\Z', "Student number must be a lowercase 's' followed by 6 digits.")
 username_format = RegexValidator(r'^[a-z]+\Z', "Username must be lowercase letters (staff initials).")
-course_number_format = RegexValidator(r'^[0-9]{5}\b', "Course must start with its 5-digit course number.")
+course_number_format = RegexValidator(r'^[0-9A-Z]{5}\b', "Course must start with its 5-character course code.")
+# DTU Lyngby's numbering, 101-499, or Online for one-time links.
+building_number_format = RegexValidator(
+    r'^(10[1-9]|1[1-9][0-9]|[2-4][0-9]{2}|Online)\Z', "Building must be a DTU Lyngby building number (101-499).",
+)
 
 
 class SatisfactionSurveyResponse(models.Model):
     # Students give a student number, staff give their initials; exactly one is set.
     student_number = models.CharField(max_length=7, blank=True, validators=[student_number_format])
     username = models.CharField(max_length=32, blank=True, validators=[username_format])
-    satisfaction = models.IntegerField(validators=[MinValueValidator(0), MaxValueValidator(10)])
-    course_number = models.CharField(max_length=100, blank=True, validators=[course_number_format])
-    building_number = models.CharField(max_length=10)
+    satisfaction = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(5)])
+    course_number = models.CharField(max_length=200, blank=True, validators=[course_number_format])
+    building_number = models.CharField(max_length=10, validators=[building_number_format])
     workshop = models.BooleanField()
     used_ai = models.BooleanField(null=True, blank=True)
 
@@ -37,7 +41,7 @@ class SurveyLink(models.Model):
     """A one-time link for Discord, or a QR code for a building."""
 
     token = models.CharField(max_length=43, primary_key=True)
-    building_number = models.CharField(max_length=10)
+    building_number = models.CharField(max_length=10, validators=[building_number_format])
     single_use = models.BooleanField()
     expires_at = models.DateTimeField()
 

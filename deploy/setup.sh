@@ -30,9 +30,10 @@ step "System packages";                  install_packages
 step "uv";                               install_uv
 step "Service user '$APP_USER'";         create_system_user "$APP_USER"
 step "Shared checkout (group '$DEV_GROUP')"; share_checkout
+# Straight after share_checkout, which opens up an existing backend/.env along with the checkout.
+step "Settings (backend/.env)";          write_env_file
 step "PostgreSQL database";              setup_database
 step "PostgreSQL password logins (PAM)"; setup_pam_auth
-step "Settings (backend/.env)";          write_env_file
 step "Python dependencies";              sync_deps
 
 step "Database and static files"

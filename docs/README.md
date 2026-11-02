@@ -21,7 +21,7 @@
   - [Updating](deployment.md#updating)
 - [nginx](nginx.md)
   - [Configuration](nginx.md#configuration)
-  - [Changes from DTU's configuration](nginx.md#changes-from-dtus-configuration)
+  - [Database port (5432)](nginx.md#database-port-5432)
   - [Applying changes](nginx.md#applying-changes)
 - [Operations](operations.md)
   - [Changing settings](operations.md#changing-settings)
@@ -38,4 +38,4 @@
 Component notes:
 
 - [`frontend/readme.md`](../frontend/readme.md): frontend files, features and kiosk mode.
-- [`backend/README.md`](../backend/README.md): why the backend replaces the Microsoft workflow.
+- [`backend/README.md`](../backend/README.md): where student data is stored, and the API.

@@ -70,7 +70,7 @@ class SupporterProblemLogForm(forms.ModelForm):
 
 
 class QrCodeForm(forms.Form):
-    building_number = forms.IntegerField(min_value=0, max_value=990)
+    building_number = forms.IntegerField(min_value=101, max_value=499)  # as building_number_format
     valid_days = forms.IntegerField(min_value=1, max_value=365)
     workshop_day = forms.BooleanField(required=False)
 
@@ -155,7 +155,8 @@ def submit_with_link(payload):
         return JsonResponse({'error': LINK_GONE}, status=403)
     if payload.get('ping'):  # the survey page checks its link before showing the form
         return JsonResponse({})
-    data = {**payload, 'building_number': link.building_number}
+    # Students' phones never queue, so only a supporter's device may send when a response was taken.
+    data = {**payload, 'building_number': link.building_number, 'saved_at': None}
     return save_response(data, link if link.single_use else None)
 
 

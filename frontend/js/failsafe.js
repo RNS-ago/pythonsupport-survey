@@ -3,8 +3,9 @@
 import { endpoint, linkToken, isQrLink, STORAGE } from './config.js';
 import { getSavedKey, clearSavedKey, isCredentialFault, showLogin } from './auth.js';
 
-const RETRY_MS     = 60_000;
-const MAX_ATTEMPTS = 20;
+const RETRY_MS = 60_000;
+// Above gunicorn's 30 s worker timeout. ?.(): older tablets lack AbortSignal.timeout.
+export const SUBMIT_TIMEOUT_MS = 35_000;
 
 // Link and QR flows are students: they must never see a login prompt.
 const isSupporterDevice = !linkToken && !isQrLink;
@@ -25,6 +26,11 @@ function writeQueue(records) {
 }
 
 const pendingCount = () => readQueue().length;
+
+// Re-read so a record queued while a fetch was pending survives.
+function settle(rec) {
+  writeQueue(readQueue().flatMap(r => r.ts !== rec.ts ? [r] : rec.sent ? [] : [rec]));
+}
 
 export function saveFailedSubmission(payload, reason = 'network error') {
   const stored = writeQueue(readQueue().concat({
@@ -79,14 +85,15 @@ export async function retryPending() {
   let sent = 0;
   try {
     for (const rec of records) {
-      if (rec.rejected || (rec.attempts || 0) >= MAX_ATTEMPTS) continue;
+      if (rec.rejected) continue;
 
       const headers = { 'Content-Type': 'application/json', 'X-CSRFToken': getSavedKey()[1] || '' };
 
       let response;
       try {
         response = await fetch(endpoint, {
-          method: 'POST', credentials: 'include', headers, body: JSON.stringify({ ...rec.payload, saved_at: rec.ts })
+          method: 'POST', credentials: 'include', headers, body: JSON.stringify({ ...rec.payload, saved_at: rec.ts }),
+          signal: AbortSignal.timeout?.(SUBMIT_TIMEOUT_MS),
         });
       } catch { break; }
 
@@ -99,15 +106,13 @@ export async function retryPending() {
       else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
         rec.rejected = true;
         rec.reason = `${rec.reason} / rejected ${response.status}`;
-      } else {
-        rec.attempts = (rec.attempts || 0) + 1;
       }
+      settle(rec);
     }
   } finally {
     retrying = false;
   }
 
-  writeQueue(records.filter(r => !r.sent));
   if (sent) notify();
   return sent;
 }

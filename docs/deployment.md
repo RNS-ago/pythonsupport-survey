@@ -59,8 +59,9 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
   people working on the project (see [Permissions](operations.md#permissions)).
 - nginx on that server forwarding `https://psqdb.compute.dtu.dk` to port 2810, configured
   as in [nginx](nginx.md).
-- The supporter password you want to use. Avoid spaces, quotes, `#`, `$` and `\`: it is
-  stored in an environment file, where those characters get special meaning.
+- The supporter password you want to use: at least 12 letters, digits, `-` or `_`.
+  `setup.sh` refuses anything else, because the password is stored in an environment file,
+  where other characters get special meaning.
 
 ## First-time setup
 
@@ -86,10 +87,10 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
    1. Install git, PostgreSQL and uv.
    2. Create the `pis` system user, and make root and the `pythonsupport` group the owners
       of the checkout.
-   3. Create the PostgreSQL user `pis` and the database `pis_survey`, and set up password
-      logins through PAM (SSSD).
-   4. Ask for the supporter password and write `backend/.env` with it, a random
+   3. Ask for the supporter password and write `backend/.env` with it, a random
       `SECRET_KEY` and `ALLOWED_HOSTS`. Root owns it; `pis` can only read it.
+   4. Create the PostgreSQL user `pis` and the database `pis_survey`, and set up password
+      logins through PAM (SSSD).
    5. Install the Python dependencies of the backend and the notebooks, create Django's
       tables, and collect the admin's static files.
    6. Apply `deploy/db-permissions.sql` (the `processed_data`, `static_data` and

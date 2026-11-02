@@ -2,7 +2,6 @@
 .kiosk-mode #sidebar,
 .kiosk-mode #sidebarOverlay,
 .kiosk-mode #buildingSelectionPage,
-.kiosk-mode #analyticsPage,
 .kiosk-mode #modeSelectionPage,
 .kiosk-mode #problemLogPage { display:none !important; }
 html.kiosk-mode, body.kiosk-mode { scroll-behavior: auto !important; }

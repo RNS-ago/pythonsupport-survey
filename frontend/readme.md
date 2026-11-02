@@ -10,7 +10,7 @@ A web-based student satisfaction survey and internal problem log for DTU Python 
 ├── assets/                 # Satisfaction rating images (face1-5.png)
 ├── css/                    # Stylesheets (main, kiosk, course-autocompleat)
 ├── js/                     # JavaScript modules (app, auth, building, config, errors, failsafe, kiosk, problem-log, survey, viewport)
-├── partials/               # HTML templates (analytics, building-selection, modals, mode-selection, problem-log, sidebar, survey-form)
+├── partials/               # HTML templates (building-selection, modals, mode-selection, problem-log, sidebar, survey-form)
 ├── data/courses.json       # Course data for autocomplete
 └── readme.md               # Documentation
 ```
@@ -25,7 +25,6 @@ A web-based student satisfaction survey and internal problem log for DTU Python 
 - Student/Employee role selection
 - Satisfaction rating with visual feedback
 - Course autocomplete from the course list
-- Analytics dashboard integration with PowerBI
 - Kiosk/Tablet Mode: Fullscreen locked mode for public tablet deployment
 
 ## Usage
@@ -36,7 +35,6 @@ Django serves the application at the site root (see [Development](../docs/develo
 2. Building Selection: Choose from predefined buildings or enter custom building number (Customer Satisfaction only)
 3. Survey Form: Fill out satisfaction survey with student number/DTU credentials
 4. Internal Logging: Tick common problems (or describe another one) and submit them to the backend
-5. Analytics: View survey statistics (requires authentication)
 
 ## Authentication
 
@@ -83,4 +81,3 @@ Kiosk mode provides secure tablet deployment in public spaces.
 ## Dependencies
 
 - Tailwind CSS (via CDN)
-- PowerBI for analytics dashboard

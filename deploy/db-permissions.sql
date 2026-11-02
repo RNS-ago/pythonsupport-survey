@@ -1,7 +1,7 @@
 -- Rights in pis_survey, applied by setup.sh and `manage.sh update` after migrations; safe to rerun.
 -- The reset revokes everything first, so deleting a GRANT removes that right. A new schema
 -- needs a line in the reset too. The psql variables come from deploy/settings.env:
--- psql -v analyst=pis_analyst -v viewer=pis_viewer -v app_user=pis ...
+-- psql -v analyst=pis_analyst -v viewer=pis_viewer ...
 
 SET client_min_messages = warning;
 
@@ -9,10 +9,8 @@ SELECT format('CREATE ROLE %I NOLOGIN', r) FROM unnest(ARRAY[:'analyst', :'viewe
  WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r)
 \gexec
 
--- So pis's backups and restores cover the analysts' tables.
-GRANT :"analyst" TO :"app_user";
-
--- pis_analyst owns them so pg_restore can put the analysts' tables back. Django stays in public.
+-- pis_analyst owns them, so every analyst can change them. Django stays in public, and pis has
+-- no rights here: backups and restores run as postgres.
 CREATE SCHEMA IF NOT EXISTS processed_data;  -- results of the processing notebooks
 CREATE SCHEMA IF NOT EXISTS static_data;     -- data from outside Django, e.g. the old survey
 CREATE SCHEMA IF NOT EXISTS published_data;  -- what viewers may see
@@ -31,10 +29,10 @@ ALTER DEFAULT PRIVILEGES FOR ROLE :"analyst" IN SCHEMA published_data REVOKE ALL
 GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE
   ON ALL TABLES IN SCHEMA processed_data, static_data, published_data TO :"analyst";
 
--- Read only Django's survey_* tables, not users or sessions.
+-- Read only Django's survey_* tables, not users, sessions or the live link tokens.
 GRANT USAGE ON SCHEMA public TO :"analyst";
 SELECT format('GRANT SELECT ON public.%I TO %I', tablename, :'analyst') FROM pg_tables
- WHERE schemaname = 'public' AND tablename LIKE 'survey\_%'
+ WHERE schemaname = 'public' AND tablename LIKE 'survey\_%' AND tablename <> 'survey_surveylink'
 \gexec
 
 -- pis_viewer: read published_data, including tables created there later.

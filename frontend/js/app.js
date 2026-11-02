@@ -16,7 +16,6 @@ await loadPartial('#sidebarContainer',   './partials/sidebar.html');
 await loadPartial('#modeSelectionContainer', './partials/mode-selection.html');
 await loadPartial('#buildingSelectionContainer', './partials/building-selection.html');
 await loadPartial('#surveyContainer',    './partials/survey-form.html');
-await loadPartial('#analyticsContainer', './partials/analytics.html');
 await loadPartial('#problemLogContainer', './partials/problem-log.html');
 await loadPartial('#modalsContainer',    './partials/modals.html');
 

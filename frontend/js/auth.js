@@ -60,8 +60,9 @@ export function wireLogin() {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password: input })
-    }).then(r => r.ok ? r.json().then(j => j.csrfToken) : null)
+      body: JSON.stringify({ password: input }),
+      signal: AbortSignal.timeout?.(10_000),  // a hang counts as unreachable: offline mode
+    }).then(r => r.status >= 500 ? Promise.reject() : r.ok ? r.json().then(j => j.csrfToken) : null)
       .catch(() => { reachable = false; return null; });
 
     document.getElementById("accessCodeInput").value = "";

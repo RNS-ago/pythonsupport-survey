@@ -33,7 +33,7 @@ export function showError(input, status) {
   if (titleEl) titleEl.textContent = title;
   document.querySelector('.error-message').textContent = message;
 
-  const isExpiredTokenError = usingToken && (title + ' ' + message).toLowerCase().includes('link has expired');
+  const isExpiredTokenError = (usingToken || isQrLink) && /link has expired|no longer works/i.test(`${title} ${message}`);
   const closeBtn = document.getElementById('closeErrorModal');
   if (closeBtn) {
     closeBtn.textContent = isExpiredTokenError ? 'Go to Python Support' : 'Try Again';

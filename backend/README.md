@@ -4,51 +4,49 @@ A small Django backend for the PIS satisfaction survey. It receives survey
 responses from the frontend, stores them in a database we own, and gives staff
 an admin site to browse them.
 
-## Why this replaces the Microsoft workflow
+## Where student data is stored
 
-The survey used to run on Microsoft 365: a Microsoft Form collected answers,
-Power Automate flows moved them around, and the results ended up in SharePoint
-lists, with Azure providing the hosting and identity around it. It worked, but:
+Student numbers are stored in these places, all on the server unless noted:
 
-- **The data lived in Microsoft's systems.** Student numbers sat in SharePoint,
-  under tenant policies and retention rules we did not set, and getting them
-  out meant a manual CSV export.
-- **The logic was spread across flows.** Validation, the "Online" location for
-  link submissions, and who could submit were split between form settings and
-  Power Automate steps that are hard to review, test, or version.
-- **Changes were slow.** Adding a question or a new kind of submission meant
-  editing the form, the flows and the list, and hoping they stayed in sync.
+| Where | What | How long |
+| --- | --- | --- |
+| `public.survey_satisfactionsurveyresponse` | Every survey response | Until deleted |
+| `processed_data.aggregated_responses` | The pipeline's copy of the old and new responses | Rebuilt by every pipeline run |
+| `static_data.old_responses` | The old SharePoint survey | Until deleted |
+| `static_data.students` | Student data from the snapshot (`update_static_data.ipynb`) | Replaced on every run of that notebook |
+| `/var/backups/pis-survey/` | Nightly `pg_dump` files of the whole database | 30 days (`KEEP_DAYS`) |
+| Supporter devices | The offline queue, and backup files supporters download | Queue: until sent; files: wherever saved |
 
-This backend replaces all of that with one codebase:
+`processed_data.processed_responses` and the dashboard have no student numbers; they use a
+pseudonymous `visitor_id` (see [Data analysis](../docs/data-analysis.md)).
 
-| Before | Now |
-| --- | --- |
-| Microsoft Form | The frontend posts JSON to `/api/responses/` |
-| Power Automate validation | `SatisfactionSurveyResponseForm` and model validators, covered by tests |
-| SharePoint list | The `SatisfactionSurveyResponse` table in our own database |
-| Browsing the SharePoint list | The Django admin at `/admin/` |
-| Form sharing settings | A shared survey password and one-time links |
-| CSV export from SharePoint | Direct database access; old data loaded into the `static_data` schema (see [Data analysis](../docs/data-analysis.md#old-data)) |
+To delete one student's data:
 
-**We control the data.** Responses stay in a database on a server we choose.
-Nothing is sent to a third party, backups are a file copy, and deleting a
-student's data is one query.
+```sh
+sudo -u postgres psql -d pis_survey <<'SQL'
+DELETE FROM public.survey_satisfactionsurveyresponse WHERE student_number = 's123456';
+DELETE FROM static_data.old_responses WHERE student_number = 's123456';
+DELETE FROM static_data.students WHERE student_number = 's123456';
+SQL
+sudo /srv/pythonsupport-survey/deploy/manage.sh pipeline   # rebuilds aggregated_responses
+```
 
-**It is built to grow.** New survey fields are a model field plus a migration.
-New endpoints, reports or exports are ordinary Django views. Every rule is in
-Python and checked by the test suite, so changes can be reviewed in a pull
-request instead of clicked together in a flow editor.
+Also remove the student from the snapshot CSV, or `static_data.students` gets them back on the
+next run of `update_static_data.ipynb`. The dumps keep the data until they are 30 days old.
 
 ## How it works
 
 - `POST /api/csrf/` with `{"password": "..."}`: checks the shared survey
   password (`SURVEY_PASSWORD`), marks the session as authorized, and returns a
-  CSRF token. The password must be re-entered once a day (`SESSION_COOKIE_AGE`).
+  CSRF token. The session lasts 24 hours from login (`SESSION_COOKIE_AGE`), and the
+  frontend also asks for the password again on each new day.
 - `POST /api/responses/`: saves a response. The caller needs either an
-  authorized session plus the `X-CSRFToken` header, or a one-time link `token`
-  in the body. A response the device queued offline also sends `saved_at`, the
-  time it was queued; it becomes `created_at` if it is no more than 7 days old
-  and not in the future.
+  authorized session plus the `X-CSRFToken` header, or a link `token` in the
+  body. A response a supporter's device queued offline also sends `saved_at`,
+  the time it was queued; it becomes `created_at` if it is no more than 7 days
+  old and not in the future. Link submissions come from students' phones, which
+  never queue, so their `saved_at` is ignored. Deleting a link in the admin
+  revokes it.
 - `POST /api/problem-logs/`: saves the internal supporter problem log. It uses
   the same authorized session and CSRF token as the survey. The JSON body is
   `{"problems": ["Files and Folders", "Antivirus"], "other": "Optional note"}`.

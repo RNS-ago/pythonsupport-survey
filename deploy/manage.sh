@@ -9,6 +9,13 @@ set -euo pipefail
 USAGE="usage: manage.sh update [branch] | backup | users | pipeline"
 source "$(dirname "$0")/lib/common.sh"
 
+# One job at a time, and never during a pipeline run: a rollback's restore rewrites the
+# pipeline's tables. The pipeline subcommand takes this lock itself; update's re-exec keeps it.
+if [[ ${1:-} != pipeline && -z ${PIS_UPDATE_FROM:-} ]]; then
+  exec 9>"$PIPELINE_LOCK"
+  flock -n 9 || { echo "Waiting for the pipeline or another manage.sh job..." >&2; flock -w 1800 9; } || exit 75
+fi
+
 case ${1:-} in
   update) update_app "${2:-main}" ;;
   backup) backup_db ;;

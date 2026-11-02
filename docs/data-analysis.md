@@ -19,7 +19,7 @@ To change them, edit that file, commit, and deploy with `manage.sh update`, whic
 
 | Schema | What goes there | `pis_analyst` | `pis_viewer` |
 | --- | --- | --- | --- |
-| `public` | Django's tables | read the `survey_*` tables only | nothing |
+| `public` | Django's tables | read the `survey_*` tables only, except `survey_surveylink` (live link tokens) | nothing |
 | `processed_data` | Results of the processing notebooks | read and write | nothing |
 | `static_data` | Data from outside Django, such as the old survey | read and write | nothing |
 | `published_data` | What viewers may see | read and write | read |
@@ -61,6 +61,11 @@ uv sync
 uv run --with jupyter jupyter lab
 ```
 
+Once per clone, also run `uv run nbstripout --install --attributes ../.gitattributes` in
+`notebooks/`. Git then strips outputs from notebooks as you stage them, so student data shown
+in a cell never gets committed; your own copy keeps its outputs. `uv sync` installs `nbstripout`
+as a dev dependency. Without that command, git commits outputs as they are.
+
 To add a package, run `uv add <package>` in `notebooks/` and commit `pyproject.toml` and
 `uv.lock` with it. `uv sync` also installs `notebooks/src/pis_lib/`, code shared by the notebooks,
 so any notebook can import it as `pis_lib`; changes to it show up after restarting the kernel.
@@ -88,7 +93,12 @@ PostgreSQL's local socket instead and needs no password; it logs in as the accou
 notebook.
 
 Django keeps its tables in `public`, the default schema, and its migrations may change
-anything there; analysts can only read its `survey_*` tables.
+anything there; analysts can only read its `survey_*` tables, except `survey_surveylink`.
+
+Never put credentials (a `.env` with `AIT_PASSWORD`) or student data (such as
+`old_data_sources/`) in the server's checkout, `/srv/pythonsupport-survey`. Every account on the
+server can read files there, including `pis`, which runs Django. Keep them on your own machine,
+or in your home directory on the server with mode `600`.
 
 ## Pipeline
 

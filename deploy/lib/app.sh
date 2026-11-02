@@ -5,7 +5,12 @@ write_env_file() {
     echo "Keeping the existing $env_file."
   else
     local password
-    read -rsp "Supporter password (the daily code): " password; echo
+    # systemd's EnvironmentFile and uv's dotenv parser read other characters differently, and an
+    # empty password locks every supporter out.
+    until read -rsp "Supporter password (the daily code): " password || exit 1; echo
+          [[ $password =~ ^[A-Za-z0-9_-]{12,}$ ]]; do
+      echo "Use at least 12 letters, digits, '-' or '_'." >&2
+    done
     install -m 640 -o root -g "$APP_USER" /dev/null "$env_file"
     cat > "$env_file" <<EOF
 SECRET_KEY=$(openssl rand -hex 32)
@@ -31,7 +36,7 @@ sync_deps() {
 # Reads the same env files as the service, in the same order.
 manage_as() {
   local user=$1; shift
-  sudo -u "$user" -H uv run --no-sync --directory "$APP_DIR/backend/pythonsupport" \
+  sudo -u "$user" -H --preserve-env=PGOPTIONS uv run --no-sync --directory "$APP_DIR/backend/pythonsupport" \
     --env-file "$APP_DIR/backend/.env" --env-file "$APP_DIR/deploy/settings.env" python manage.py "$@"
 }
 

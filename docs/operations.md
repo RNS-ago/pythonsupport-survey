@@ -50,6 +50,10 @@ people working on the project, the server's `pythonsupport` group, can change th
 | `/var/lib/pis-dashboard/` (the dashboard) | `pis-pipeline`, group `pis` | nothing | read | read and write |
 | `/var/backups/pis-survey/` | root | nothing | nothing | nothing |
 
+Root runs code from the checkout (the nightly backup cron, `manage.sh update`), so membership
+in `pythonsupport` is equivalent to root. The "nothing" entries above are file permissions,
+not a security boundary. Add only people who also have full `sudo`.
+
 `backend/.env` holds the secrets (`SECRET_KEY` and the supporter password), so `setup.sh`
 takes it out of the group's access: it removes the ACL the rest of the checkout gets, and
 sets the owner to root, group `pis`, mode `640`.
@@ -60,7 +64,7 @@ backdoor in the backend or change the JavaScript that supporters' browsers load.
 bug and restarting the service removes them.
 
 This is why the scripts run `git`, `uv sync` and `collectstatic` as root, and only the
-commands that touch the database (`migrate`, `createsuperuser`, `pg_dump`) as `pis`. Run
+commands that touch Django's tables (`migrate`, `createsuperuser`) as `pis`. Run
 manual commands the same way: `sudo` (or your own account, if you're in `pythonsupport`)
 for anything in the checkout, `sudo -u pis` for anything that touches the database. Never
 add `pis` or `pis-pipeline` to the `pythonsupport` group.
@@ -122,8 +126,9 @@ sudo /srv/pythonsupport-survey/deploy/manage.sh pipeline
 The cron runs write to the journal: `sudo journalctl -t pis-pipeline`. A run stops at the
 first notebook that fails, and the admin keeps showing the last dashboard that was built.
 Only one run goes at a time: a run that would overlap the previous one is skipped, and a run
-still going after 30 minutes is stopped, for example one waiting for a table an analyst has
-open.
+still going after 10 minutes is stopped, for example one waiting for a table an analyst has
+open. `manage.sh` jobs other than `pipeline` share the same lock: runs due during an `update` or
+backup are skipped, and `manage.sh` waits up to 30 minutes for a run, or another job, to finish.
 
 ## Backups and restore
 
@@ -131,10 +136,11 @@ open.
 `/var/backups/pis-survey/db-<date>.dump` (a `pg_dump` of the whole database, including the
 analysts' schemas) and deletes dumps older than 30 days (`KEEP_DAYS` in `deploy/settings.env`). The
 backups contain student numbers: keep them only on storage the team controls, and only as
-long as the retention policy allows.
+long as the retention policy allows. The nightly run logs to the journal
+(`sudo journalctl -t pis-survey-backup`); a night with no `db-<date>-0300xx.dump` means it failed.
 
-The script runs as root: `pg_dump` runs as `pis`, which owns the database, and root writes
-the dump to a directory only root can open. Code running as `pis` (for example after a bug
+The script runs as root: `pg_dump` runs as `postgres`, so it covers every schema without `pis`
+needing access to the analysts' data, and root writes the dump to a directory only root can open. Code running as `pis` (for example after a bug
 in Django is exploited) can corrupt the database, but not the existing backups. Dumps made
 after such corruption contain it too, so the older dumps are the ones to restore. The
 backups do not survive a compromise of root; for that, copy them off the server.
@@ -144,11 +150,11 @@ To restore a backup:
 ```sh
 sudo systemctl stop pis-survey
 sudo cat /var/backups/pis-survey/db-<date>.dump \
-  | sudo -u pis pg_restore --clean --if-exists --single-transaction --dbname=pis_survey
+  | sudo -u postgres pg_restore --clean --if-exists --single-transaction --dbname=pis_survey
 sudo systemctl start pis-survey
 ```
 
-`pis` can't open the backup directory, so root reads the dump and passes it on stdin.
+`postgres` can't open the backup directory, so root reads the dump and passes it on stdin.
 `--single-transaction` means a failed restore changes nothing.
 
 ## Useful commands
@@ -157,5 +163,6 @@ sudo systemctl start pis-survey
 sudo systemctl status pis-survey         # is gunicorn running?
 sudo journalctl -u pis-survey -f         # backend log
 sudo journalctl -t pis-pipeline          # notebook pipeline log
+sudo journalctl -t pis-survey-backup     # nightly backup log
 sudo -u pis psql pis_survey              # SQL shell on the database
 ```

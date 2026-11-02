@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import SatisfactionSurveyResponse, SupporterProblemLog
+from .models import SatisfactionSurveyResponse, SupporterProblemLog, SurveyLink
 
 admin.site.index_template = 'survey/admin_index.html'
 
@@ -19,3 +19,9 @@ class SupporterProblemLogAdmin(admin.ModelAdmin):
         'ms_powershell_mini_forge_prompt', 'starting_idle',
         'ms_start_app', 'antivirus', 'other',
     ]
+
+
+# Deleting a link revokes it: a leaked QR code stops working at once.
+@admin.register(SurveyLink)
+class SurveyLinkAdmin(admin.ModelAdmin):
+    list_display = ['building_number', 'single_use', 'expires_at']

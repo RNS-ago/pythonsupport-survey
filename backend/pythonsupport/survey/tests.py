@@ -1,3 +1,4 @@
+import json
 import tempfile
 from datetime import timedelta
 from pathlib import Path
@@ -6,8 +7,10 @@ from django.contrib.auth.models import Permission, User
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 
+from pythonsupport.urls import FRONTEND_DIR
 
 from .models import SatisfactionSurveyResponse, SurveyLink, SupporterProblemLog
+from .views import SatisfactionSurveyResponseForm
 
 PASSWORD = 'hunter2'
 
@@ -76,7 +79,8 @@ class SubmitResponseTests(TestCase):
         stranger.cookies['csrftoken'] = 'a' * 32
         self.assertEqual(issue({'building_number': 358, 'valid_days': 7}, stranger, 'a' * 32).status_code, 403)
         self.assertIn('valid_days', issue({'building_number': 358, 'valid_days': 0}).json()['errors'])
-        self.assertIn('building_number', issue({'building_number': 991, 'valid_days': 7}).json()['errors'])
+        for building in [100, 500]:  # DTU Lyngby numbers only: 101-499
+            self.assertIn('building_number', issue({'building_number': building, 'valid_days': 7}).json()['errors'])
 
         issued = issue({'building_number': 358, 'valid_days': 7}).json()
         token = issued['token']
@@ -125,12 +129,25 @@ class SubmitResponseTests(TestCase):
             else:
                 self.assertGreaterEqual(created_at, now)
 
+    def test_link_submission_ignores_saved_at(self):
+        link = SurveyLink.objects.create(
+            token='qr', building_number='358', single_use=False, expires_at=timezone.now() + timedelta(days=1),
+        )
+        now = timezone.now()
+        data = {**VALID, 'token': link.token, 'saved_at': (now - timedelta(days=2)).isoformat()}
+        response = Client().post('/api/responses/', data, content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        self.assertGreaterEqual(SatisfactionSurveyResponse.objects.get().created_at, now)
+
     def test_bad_payloads_are_rejected(self):
         for field, data in [
             ('workshop', without('workshop')),
             ('course_number', {**VALID, 'course_number': 'fysik'}),
             ('saved_at', {**VALID, 'saved_at': 'yesterday'}),
             ('satisfaction', {**VALID, 'satisfaction': 11}),
+            ('building_number', {**VALID, 'building_number': '100'}),
+            ('building_number', {**VALID, 'building_number': '500'}),
+            ('building_number', {**VALID, 'building_number': 'abc'}),
             ('student_number', {**VALID, 'student_number': '1234567'}),
             ('student_number', {**VALID, 'student_number': 'S123456'}),
             ('student_number', {**VALID, 'student_number': 's12345'}),
@@ -142,6 +159,29 @@ class SubmitResponseTests(TestCase):
             self.assertEqual(response.status_code, 400, field)
             self.assertIn(field, response.json()['errors'])
         self.assertFalse(SatisfactionSurveyResponse.objects.exists())
+
+    @override_settings(SURVEY_PASSWORD='')
+    def test_empty_password_setting_never_logs_in(self):
+        for password in ['', 'x']:
+            self.assertEqual(self.get_token(Client(), password).status_code, 403, repr(password))
+
+    def test_non_json_body_is_rejected(self):
+        for url in ['/api/responses/', '/api/qr-codes/', '/api/problem-logs/']:
+            response = self.client.post(url, 'not json', content_type='application/json',
+                                        headers={'X-CSRFToken': self.token})
+            self.assertEqual(response.status_code, 400, url)
+
+    def test_issuing_a_link_purges_expired_ones(self):
+        SurveyLink.objects.create(token='old', building_number='358', single_use=False, expires_at=timezone.now())
+        self.assertEqual(self.client.post('/api/links/', headers={'X-CSRFToken': self.token}).status_code, 201)
+        self.assertFalse(SurveyLink.objects.filter(token='old').exists())
+
+    def test_every_course_the_form_offers_is_accepted(self):
+        courses = json.loads((FRONTEND_DIR / 'data' / 'courses.json').read_text())
+        labels = [f"{c['number']} - {c['name']}" for c in courses]  # as survey.js builds them
+        rejected = [label for label in labels
+                    if not SatisfactionSurveyResponseForm({**VALID, 'course_number': label}).is_valid()]
+        self.assertEqual(rejected, [])
 
 
 @override_settings(SURVEY_PASSWORD=PASSWORD)
@@ -214,6 +254,10 @@ class FrontendTests(TestCase):
             response.close()
         modified = self.client.get('/js/app.js')['Last-Modified']
         self.assertEqual(self.client.get('/js/app.js', HTTP_IF_MODIFIED_SINCE=modified).status_code, 304)
+
+    def test_admin_without_trailing_slash_redirects(self):
+        self.assertRedirects(self.client.get('/admin'), '/admin/', 301, fetch_redirect_response=False)
+        self.assertEqual(self.client.get('/no-such-page').status_code, 404)
 
 
 class DashboardTests(TestCase):
