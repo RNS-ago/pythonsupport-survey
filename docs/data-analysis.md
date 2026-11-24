@@ -10,6 +10,7 @@ local socket.
 - [Database logins](#database-logins)
 - [Connecting from a notebook](#connecting-from-a-notebook)
 - [Pipeline](#pipeline)
+- [Student data](#student-data)
 - [Courses](#courses)
 - [Fetch dates](#fetch-dates)
 - [Old data](#old-data)
@@ -121,26 +122,56 @@ anything there; analysts can only read its `survey_*` tables, except `survey_sur
 Never put credentials (a `.env` with `AIT_PASSWORD`) or student data (such as
 `old_data_sources/`) in the server's checkout, `/srv/pythonsupport-survey`. Every account on the
 server can read files there, including `pis`, which runs Django. Keep them on your own machine,
-or in your home directory on the server with mode `600`.
+or in your home directory on the server with mode `600`. The one exception is the AIT login for
+`manage.sh fetch` (see [Student data](#student-data)), which `setup.sh` and `manage.sh update`
+lock down.
 
 ## Pipeline
 
-[`notebooks/pipeline.py`](../notebooks/pipeline.py) runs the notebooks in `NOTEBOOKS` in order:
-the two processing notebooks, then `visualization/dashboard.ipynb`. It stops at the first error
-and saves no outputs into the notebooks. It doesn't start while a `static_data` table in
-`STATIC_TABLES` is missing, and names the missing ones. To run it on your machine:
+[`notebooks/pipeline.py`](../notebooks/pipeline.py) runs one group of notebooks from `GROUPS`
+in order:
+
+- `dashboard`, the default: the two processing notebooks, then `visualization/dashboard.ipynb`.
+  It doesn't start while a `static_data` table in `STATIC_TABLES` is missing, and names the
+  missing ones.
+- `fetch`: `fetching_data/get_student_data.ipynb` (see [Student data](#student-data)).
+
+It stops at the first error and saves no outputs into the notebooks. To run it on your machine:
 
 ```sh
 cd notebooks
-uv run --group pipeline python pipeline.py
+uv run --group pipeline python pipeline.py                              # dashboard
+uv run --group pipeline --group student-data python pipeline.py fetch
 ```
 
 The server runs it on a schedule as `pis-pipeline` and shows the dashboard at
 `/admin/dashboard/` (see [Dashboard pipeline](operations.md#dashboard-pipeline)). A notebook in
-`NOTEBOOKS` must run unattended, so it can't ask for input. On the server it can't write to the
+`GROUPS` must run unattended, so it can't ask for input. On the server it can't write to the
 checkout: save results to the database, and the dashboard to `DASHBOARD_HTML`. The server installs
-only the dependencies and the `pipeline` group, so a package these notebooks import goes in one
-of those.
+only the dependencies and the `pipeline` and `student-data` groups, so a package these notebooks
+import goes in one of those.
+
+## Student data
+
+[`notebooks/fetching_data/get_student_data.ipynb`](../notebooks/fetching_data/get_student_data.ipynb)
+replaces `static_data.students` with AIT's student view. It reads `AIT_USERNAME` and
+`AIT_PASSWORD` from a `.env`; on your machine, `notebooks/.env` works. On the server it runs as
+`pis-pipeline`, which reads the login from `notebooks/fetching_data/.env`. The dashboard notebooks
+are in other folders, so they don't load it. Create it with:
+
+```sh
+sudo install -m 640 -o root -g pis-pipeline /dev/null /srv/pythonsupport-survey/notebooks/fetching_data/.env
+sudoedit /srv/pythonsupport-survey/notebooks/fetching_data/.env   # AIT_USERNAME=... and AIT_PASSWORD=...
+```
+
+`setup.sh` and `manage.sh update` set it back to root, group `pis-pipeline`, mode `640`, because
+`setup.sh` opens up the rest of the checkout. Then fetch, and rebuild the dashboard with the new
+data:
+
+```sh
+sudo /srv/pythonsupport-survey/deploy/manage.sh fetch
+sudo /srv/pythonsupport-survey/deploy/manage.sh pipeline
+```
 
 ## Courses
 

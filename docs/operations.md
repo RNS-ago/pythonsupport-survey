@@ -43,8 +43,9 @@ people working on the project, the server's `pythonsupport` group, can change th
 
 | Path | Owner | `pythonsupport` can | `pis` can | `pis-pipeline` can |
 | --- | --- | --- | --- | --- |
-| `/srv/pythonsupport-survey/` (code, `backend/.venv`, `notebooks/.venv`, `backend/staticfiles`), except `backend/.env` | root, group `pythonsupport` | read and write | read | read |
+| `/srv/pythonsupport-survey/` (code, `backend/.venv`, `notebooks/.venv`, `backend/staticfiles`), except the two `.env` files | root, group `pythonsupport` | read and write | read | read |
 | `/srv/pythonsupport-survey/backend/.env` | root, group `pis` | nothing | read | nothing |
+| `/srv/pythonsupport-survey/notebooks/fetching_data/.env` (the AIT login) | root, group `pis-pipeline` | nothing | nothing | read |
 | `/opt/uv-python/` (the Python that uv installs) | root | read | read | read |
 | The `pis_survey` database | PostgreSQL user `pis` | through a [notebook login](data-analysis.md#database-logins), as in `deploy/db-permissions.sql` | read and write | the same as `pythonsupport` |
 | `/var/lib/pis-dashboard/` (the dashboard) | `pis-pipeline`, group `pis` | nothing | read | read and write |
@@ -56,7 +57,9 @@ not a security boundary. Add only people who also have full `sudo`.
 
 `backend/.env` holds the secrets (`SECRET_KEY` and the supporter password), so `setup.sh`
 takes it out of the group's access: it removes the ACL the rest of the checkout gets, and
-sets the owner to root, group `pis`, mode `640`.
+sets the owner to root, group `pis`, mode `640`. `setup.sh` and `manage.sh update` do the same
+for `notebooks/fetching_data/.env`, the AIT login for `manage.sh fetch`, with group
+`pis-pipeline` (see [Student data](data-analysis.md#student-data)).
 
 If an attacker ever finds a bug that lets them run code inside Django, that code runs as
 `pis`. It can reach the data, since the app needs that to work, but it cannot plant a
@@ -127,7 +130,9 @@ The cron runs write to the journal: `sudo journalctl -t pis-pipeline`. A run sto
 first notebook that fails, and the admin keeps showing the last dashboard that was built.
 Only one run goes at a time: a run that would overlap the previous one is skipped, and a run
 still going after 10 minutes is stopped, for example one waiting for a table an analyst has
-open. `manage.sh` jobs other than `pipeline` share the same lock: runs due during an `update` or
+open. `manage.sh fetch`, which fetches the student data from AIT
+(see [Student data](data-analysis.md#student-data)), runs the same way and takes the same lock.
+`manage.sh` jobs other than `pipeline` and `fetch` share the same lock: runs due during an `update` or
 backup are skipped, and `manage.sh` waits up to 30 minutes for a run, or another job, to finish.
 
 ## Backups and restore

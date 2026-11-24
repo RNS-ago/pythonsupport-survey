@@ -1,6 +1,7 @@
 install_packages() {
   apt-get update
-  apt-get install -y git sudo curl openssl cron acl postgresql
+  # libltdl7 and the Kerberos libraries: mssql-python's bundled ODBC driver, for the fetch group.
+  apt-get install -y git sudo curl openssl cron acl postgresql libltdl7 libkrb5-3 libgssapi-krb5-2
 }
 
 install_uv() {

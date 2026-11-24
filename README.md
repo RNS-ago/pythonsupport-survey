@@ -98,7 +98,8 @@ and is the table to start from.
 
 - Run the processing notebooks and the dashboard in order with
   `uv run --group pipeline python pipeline.py`; the server does this on a schedule.
-- Keep student data and credentials out of the repository and the server's checkout; the
+- Keep student data and credentials out of the repository and the server's checkout (except
+  the AIT login for `manage.sh fetch`, see [Student data](docs/data-analysis.md#student-data)); the
   notebook outputs may show student data too, which is why nbstripout is needed.
 
 More detail in [Data analysis](docs/data-analysis.md).

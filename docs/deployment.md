@@ -43,6 +43,7 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
 | `manage.sh backup` | Back up the database (daily from cron, and before every update) |
 | `manage.sh users` | Database logins for the `pythonsupport` group (see [Data analysis](data-analysis.md#database-logins)) |
 | `manage.sh pipeline` | Run the notebook pipeline now (it also runs from cron) |
+| `manage.sh fetch` | Fetch the student data from AIT (see [Student data](data-analysis.md#student-data)) |
 | `settings.env` | All settings that are the same on every server (paths, users, database, port, schedules); see [Changing settings](operations.md#changing-settings) |
 | `lib/common.sh` | Loads `settings.env` and the other files in `lib/`, and checks that the script runs as root from the checkout |
 | `lib/system.sh` | Packages, uv, the system users and the shared checkout |
@@ -112,7 +113,7 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
    `https://psqdb.compute.dtu.dk/admin/`.
 
 4. Load the old survey (`static_data.old_responses`, see [Old data](data-analysis.md#old-data)),
-   the student data (`static_data.students`) and the courses (`static_data.courses`, see
+   the student data (`static_data.students`, see [Student data](data-analysis.md#student-data)) and the courses (`static_data.courses`, see
    [Courses](data-analysis.md#courses)), which the pipeline reads. Then build the
    dashboard without waiting for cron, and check that it opens at
    `https://psqdb.compute.dtu.dk/admin/dashboard/`:
