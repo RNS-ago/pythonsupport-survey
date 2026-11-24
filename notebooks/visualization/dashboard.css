@@ -1,0 +1,245 @@
+/* The page around the dashboard chart. dashboard_template.html sets the colors from the notebook: --surface-light,
+   --surface-dark, --ink-light, --ink-dark and --accent. */
+:root {
+  color-scheme: light dark;
+  --surface: light-dark(var(--surface-light), var(--surface-dark));
+  --ink: light-dark(var(--ink-light), var(--ink-dark));
+  --line: color-mix(in srgb, var(--ink) 25%, transparent);
+  --ink-2: color-mix(in srgb, var(--ink) 72%, var(--surface));
+  --muted: color-mix(in srgb, var(--ink) 50%, var(--surface));
+  --quiet: color-mix(in srgb, var(--ink) 10%, var(--surface));  /* as the chart's gray buttons */
+
+  &:has(> head > meta[name="color-scheme"][content="dark"]) {
+    color-scheme: dark;
+  }
+
+  &:has(> head > meta[name="color-scheme"][content="light"]) {
+    color-scheme: light;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* No strip right of the chart for the ⋯ menu: it floats over the page's empty top-right corner. */
+#vis.vega-embed {
+  width: 100%;
+  display: flex;
+  padding-right: 0;
+}
+
+/* vega-embed puts the chart in this wrapper, as wide as the chart; the script reads the window's room from its
+   width, so it fills the page, and can narrow again past the chart it holds. */
+#vis .chart-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+/* The two buttons line up with the page: their tops with the title's, the theme button's right edge with the end
+   of the dividers. The script sets --page-margin, the chart's own margin; 24px until it does. The ⋯ menu sits
+   left of the theme button, 12px apart, and its popup opens from it, clear of the window's edge. */
+#theme {
+  position: absolute;
+  z-index: 1000;  /* above the chart, which comes after it and would take its clicks; as vega-embed's ⋯ button */
+  top: var(--page-margin, 24px);
+  right: var(--page-margin, 24px);
+}
+
+#vis.vega-embed details {
+  position: absolute;
+  top: var(--page-margin, 24px);
+  right: calc(var(--page-margin, 24px) + 36px + 12px);
+}
+
+#theme,
+#vis.vega-embed summary {
+  box-sizing: border-box;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+#theme svg,
+#vis.vega-embed summary svg {
+  width: 21px;
+  height: 21px;
+}
+
+#vis.vega-embed .vega-actions {
+  top: 44px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The button offers the theme that isn't on screen. Both actions are in the markup, and display: none also hides
+   the other one from screen readers, so the button is right without the script, also when the device switches. */
+#theme > span {
+  display: contents;  /* the icon itself is the button's grid item, centered, not an inline box on a text baseline */
+}
+
+#theme .to-light {
+  display: none;
+}
+
+:root:has(> head > meta[name="color-scheme"][content="dark"]) #theme {
+  .to-light { display: contents; }
+  .to-dark { display: none; }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(:has(> head > meta[name="color-scheme"][content="light"])) #theme {
+    .to-light { display: contents; }
+    .to-dark { display: none; }
+  }
+}
+
+#theme,
+#vis.vega-embed summary {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  transition: opacity 0.2s ease-out;
+}
+
+/* !important to beat vega-embed's ".vega-embed:hover summary { opacity: 1 !important }", which lights the ⋯ button
+   while the mouse is anywhere over the chart: each button lights up only while it is hovered, focused or open. */
+#theme,
+#vis.vega-embed summary {
+  opacity: 0.6 !important;
+}
+
+#theme:hover,
+#theme:focus-visible,
+#vis.vega-embed summary:hover,
+#vis.vega-embed summary:focus-visible,
+#vis.vega-embed details[open] summary {
+  opacity: 1 !important;
+}
+
+#theme:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+#vis.vega-embed .vega-actions {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+#vis.vega-embed .vega-actions a {
+  color: var(--ink);
+}
+
+#vis.vega-embed .vega-actions a:hover {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
+}
+
+#vis.vega-embed .vega-actions::before {
+  border-bottom-color: var(--line);
+}
+
+#vis.vega-embed .vega-actions::after {
+  border-bottom-color: var(--surface);
+}
+
+#vg-tooltip-element.vg-tooltip {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+/* The filters in use, which the script lists under the chart's Filters title: chips as the Count buttons beside
+   them, 34px tall and 6px apart, blue while on and gray while off. */
+#filters {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font: 13px system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+#filters .filter,
+#filters .clear {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  height: 34px;
+  border-radius: 6px;
+  background: var(--quiet);
+  color: var(--ink-2);
+}
+
+#filters .filter.on {
+  background: var(--accent);
+  color: white;
+}
+
+#filters button {
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+#filters .filter button:hover {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
+
+#filters .switch {
+  min-width: 0;
+  padding: 0 4px 0 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#filters .remove {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+}
+
+#filters .remove svg {
+  width: 16px;
+  height: 16px;
+}
+
+#filters .clear {
+  padding: 0 12px;
+}
+
+#filters .clear:hover {
+  background: color-mix(in srgb, var(--ink) 16%, var(--surface));
+}
+
+#filters button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+#filters .none {
+  color: var(--muted);
+}

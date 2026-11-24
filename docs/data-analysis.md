@@ -180,6 +180,15 @@ The self-check for reading the service's answers runs from `notebooks/`, without
 uv run python tests/test_ait.py
 ```
 
+The dashboard page is `visualization/dashboard_template.html` with its style, `dashboard.css`, and
+script, `dashboard.js`, which the notebook writes into one file. `tests/test_dashboard_page.py`
+builds the page from fake data, without a database, and runs its script in Node.js. Run it from
+`notebooks/` after changing the notebook or those files:
+
+```sh
+uv run --group visualization python tests/test_dashboard_page.py
+```
+
 ## Courses
 
 [`notebooks/fetching_data/update_courses.ipynb`](../notebooks/fetching_data/update_courses.ipynb)
