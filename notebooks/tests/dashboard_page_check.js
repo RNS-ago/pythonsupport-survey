@@ -154,8 +154,8 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 300));
   check(rows[rows.length - 2] === 'Other study lines' && rows[rows.length - 1] === 'Unknown',
     'study lines end with Other study lines, then Unknown');
   await click(lineBars().find(item => item.datum.line === 'Unknown'));
-  check(kpi().visits === expected.unknown_line && kpi().verified === 0,
-    'clicking Unknown shows its ' + kpi().visits + ' visits, none verified');
+  check(kpi().visits === expected.unknown_line && kpi().verified === expected.unknown_line_verified,
+    'clicking Unknown shows its ' + kpi().visits + ' visits, ' + kpi().verified + ' verified');
   await click(lineBars().find(item => item.datum.line === 'Unknown'));
 
   // The Count buttons change what every bar counts.

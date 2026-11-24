@@ -252,13 +252,14 @@ vegaEmbed('#vis', spec, embedOpt).then(async ({view}) => {
   // As much room above the title as left of the plots; Vega's padding is above it already.
   container.style.paddingTop = Math.max(0, margin - view.padding().top) + 'px';
   document.documentElement.style.setProperty('--page-margin', margin + 'px');
-  await list();
-  around = container.querySelector('svg, canvas').getBoundingClientRect().width - widest;  // vega-embed draws in an svg
-  await fit();
-  // A pick in a chart. Vega calls data listeners mid-run, where list() can't start another: list on the next frame.
+  // A pick in a chart, also one made while the page sets up. Vega calls data listeners mid-run, where list() can't
+  // start another: list on the next frame.
   let listing = 0;
   const relist = () => { listing = listing || requestAnimationFrame(() => { listing = 0; list(); }); };
   for (const name in filterLabels) view.addDataListener(name + '_store', relist);
+  await list();
+  around = container.querySelector('svg, canvas').getBoundingClientRect().width - widest;  // a canvas, vega-embed's default
+  await fit();
   window.addEventListener('resize', () => { frame = frame || requestAnimationFrame(fit); });
   // Filters change the counts, and so the labels: fit the axes again after each click or drag, once Vega has applied
   // it. No resize: the page stays put, only plots move by what their labels gained or lost.
