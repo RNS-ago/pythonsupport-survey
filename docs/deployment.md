@@ -111,8 +111,9 @@ Notebooks elsewhere connect through nginx over TLS and log in with their DTU pas
    test response and a test problem log. Check that both appear under
    `https://psqdb.compute.dtu.dk/admin/`.
 
-4. Load the old survey (`static_data.old_responses`, see [Old data](data-analysis.md#old-data))
-   and the student data (`static_data.students`), which the pipeline reads. Then build the
+4. Load the old survey (`static_data.old_responses`, see [Old data](data-analysis.md#old-data)),
+   the student data (`static_data.students`) and the courses (`static_data.courses`, see
+   [Courses](data-analysis.md#courses)), which the pipeline reads. Then build the
    dashboard without waiting for cron, and check that it opens at
    `https://psqdb.compute.dtu.dk/admin/dashboard/`:
 

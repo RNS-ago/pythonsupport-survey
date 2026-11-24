@@ -8,27 +8,14 @@ from pis_lib.courses import scrape
 
 
 def check_progress():
-    out = io.StringIO()  # not a tty, so no redraw thread and no escape codes
-    p = scrape.Progress(10, stream=out)
-    p.start -= 5  # pretend 5 seconds have passed
-    p.active = {"ThreadPoolExecutor-0_3": "02450", "ThreadPoolExecutor-0_1": "01001"}
-    p.done, p.skipped = 4, 1
-    lines = p.lines()
-    assert lines[0].startswith("Courses:           4 / 10, 40%, 0.8/s, ETA 7s"), lines[0]
-    assert lines[1].strip() == "Skipped:           1", lines[1]
-    assert lines[2].strip() == "Elapsed time:     5s", lines[2]
-    assert lines[3].strip() == f"Workers:      2 / {scrape.WORKERS} busy", lines[3]
-    assert lines[4:] == ["  * worker 1: 01001", "  * worker 3: 02450"], lines[4:]
-    p.tick("02450", found=True)
-    assert "[5/10] 02450" in out.getvalue(), out.getvalue()
-    p.tick("99999", found=False)
-    assert "(skipped)" in out.getvalue()
-    assert (p.done, p.skipped) == (6, 2)
-    p.tick("02002", found=False, error="02002: Read timed out")
-    assert "1 failed" in p.lines()[1], p.lines()[1]
+    out = io.StringIO()
+    p = scrape.Progress(3, stream=out)
+    p.tick(found=True)
+    p.tick(found=False)
+    p.tick(found=False, error="02002: Read timed out")
     p.close()
-    assert out.getvalue().endswith("failed 02002: Read timed out\n"), out.getvalue()
-    assert scrape.human(3671) == "1h1m11s" and scrape.human(95) == "1m35s" and scrape.human(9) == "9s"
+    assert out.getvalue() == ("\r1 / 3 courses, 0 skipped\r2 / 3 courses, 1 skipped\r3 / 3 courses, 2 skipped\n"
+                              "failed 02002: Read timed out\n"), out.getvalue()
     # only finished exam periods, newest first, and only last year's two
     assert scrape.finished_semesters(datetime.date(2026, 9, 22)) == ["Summer-2026", "Winter-2025"]
     assert scrape.finished_semesters(datetime.date(2026, 1, 15)) == ["Summer-2025", "Winter-2024"]
@@ -47,31 +34,62 @@ def check_progress():
     print("progress ok")
 
 
+GRID = {"E1A": {"day": "Monday", "start": "08:00", "end": "12:00"}}
+
+
 def check_enrolment_failure():
-    """A course page that loaded is kept when karakterer.dtu.dk fails, and the failure is listed."""
+    """A course page that loaded is kept when karakterer.dtu.dk fails or shows no number, and the failure is listed."""
+    class Page:
+        status_code = 200
+        text = ('<div id="pagecontents"><h2>02002 Computer Programming</h2>'
+                "<table><tr><td><label>Schedule</label></td><td>Autumn E1A</td></tr></table></div>")
+
+    class Blank(Page):
+        text = "<table><tr><td>Antal tilmeldte</td><td>-</td></tr></table>"
+
+    def down(url):
+        raise requests.ConnectionError("karakterer.dtu.dk is down")
+
+    for grades, failure in [(down, "karakterer.dtu.dk is down"),
+                            (lambda url: Blank(), "invalid literal for int() with base 10: '-'")]:
+        class Session:
+            def get(self, url):
+                return grades(url) if url.startswith(scrape.GRADES) else Page()
+
+        original, scrape.thread_session = scrape.thread_session, lambda language: Session()
+        try:
+            progress = scrape.Progress(1, stream=io.StringIO())
+            course = scrape.fetch("02002", GRID, progress, "en-GB", ["Summer-2026"])
+        finally:
+            scrape.thread_session = original
+        assert course["name"] == "Computer Programming" and "enrolled" not in course, course
+        assert progress.failures == [f"02002 enrolment: {failure}"], progress.failures
+    print("enrolment failure ok")
+
+
+def check_enrolment_skipped():
+    """A course without a weekly slot can't go on the schedule, so karakterer.dtu.dk isn't asked."""
     class Page:
         text = '<div id="pagecontents"><h2>02002 Computer Programming</h2></div>'
 
     class Session:
         def get(self, url):
-            if url.startswith(scrape.GRADES):
-                raise requests.ConnectionError("karakterer.dtu.dk is down")
+            assert not url.startswith(scrape.GRADES), url
             return Page()
 
     original, scrape.thread_session = scrape.thread_session, lambda language: Session()
     try:
-        progress = scrape.Progress(1, stream=io.StringIO())
-        course = scrape.fetch("02002", {}, progress, "en-GB", ["Summer-2026"])
+        course = scrape.fetch("02002", GRID, scrape.Progress(1, stream=io.StringIO()), "en-GB", ["Summer-2026"])
     finally:
         scrape.thread_session = original
-    assert course["name"] == "Computer Programming" and "enrolled" not in course, course
-    assert progress.failures == ["02002 enrolment: karakterer.dtu.dk is down"], progress.failures
-    print("enrolment failure ok")
+    assert course["schedule_slots"] == [] and "enrolled" not in course, course
+    print("enrolment skipped ok")
 
 
 if __name__ == "__main__":
     check_progress()
     check_enrolment_failure()
+    check_enrolment_skipped()
     s = scrape.session()
     course = scrape.parse(s.get("https://kurser.dtu.dk/course/2024-2025/02450").text, "02450")
     assert course["name"] == "Introduction to Machine Learning and Data Mining", course["name"]

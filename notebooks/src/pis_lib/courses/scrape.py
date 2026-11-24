@@ -6,7 +6,6 @@ import os
 import re
 import sys
 import threading
-import time
 from html import unescape
 
 import requests
@@ -132,78 +131,23 @@ def semesters(slots):
     return sorted({SEASONS[slot["slot"][0]] for slot in slots})
 
 
-def human(seconds):
-    """1234 -> 20m34s, in rclone's style."""
-    minutes, seconds = divmod(int(seconds), 60)
-    hours, minutes = divmod(minutes, 60)
-    if hours:
-        return f"{hours}h{minutes}m{seconds}s"
-    return f"{minutes}m{seconds}s" if minutes else f"{seconds}s"
-
-
 class Progress:
-    """Live status block on stderr: counters, rate, ETA and what each worker is on.
-
-    Falls back to one line per course when stderr is not a terminal, so logs stay readable.
-    """
+    """One line on stderr, rewritten after each course; the failures are listed when the run ends."""
 
     def __init__(self, total, stream=sys.stderr):
         self.total, self.stream = total, stream
-        self.done = self.skipped = self.drawn = 0
-        self.failures = []  # "code: error", listed when the run ends
-        self.active = {}  # worker thread name -> course code being fetched
-        self.start = time.monotonic()
-        self.live = stream.isatty()
-        self.stopped = threading.Event()
-        if self.live:
-            threading.Thread(target=self._redraw_loop, daemon=True).start()
+        self.done = self.skipped = 0
+        self.failures = []  # "code: error"
 
-    def _redraw_loop(self):
-        while not self.stopped.wait(0.5):  # keep the clock moving even while requests hang
-            self.draw()
-
-    def working_on(self, code):
-        self.active[threading.current_thread().name] = code
-
-    def idle(self):
-        self.active.pop(threading.current_thread().name, None)
-
-    def tick(self, code, found, error=False):
+    def tick(self, found, error=None):
         self.done += 1
         self.skipped += not found
         if error:
             self.failures.append(error)
-        if not self.live:
-            print(f"[{self.done}/{self.total}] {code}" + ("" if found else " (skipped)"), file=self.stream)
-
-    def lines(self):
-        elapsed = time.monotonic() - self.start
-        rate = self.done / elapsed if elapsed else 0
-        left = self.total - self.done
-        eta = human(left / rate) if rate and left else "-"
-        percent = self.done * 100 // self.total if self.total else 0
-        block = [
-            f"Courses:      {self.done:>6} / {self.total}, {percent}%, {rate:.1f}/s, ETA {eta}",
-            f"Skipped:      {self.skipped:>6}" + (f", {len(self.failures)} failed" if self.failures else ""),
-            f"Elapsed time: {human(elapsed):>6}",
-            f"Workers:      {len(self.active)} / {WORKERS} busy",
-        ]
-        # ThreadPoolExecutor names its threads ThreadPoolExecutor-0_3; keep the trailing number
-        return block + [f"  * worker {name.rsplit('_', 1)[-1]}: {code}"
-                        for name, code in sorted(self.active.items())]
-
-    def draw(self):
-        if not self.live:
-            return
-        up = f"\x1b[{self.drawn}A" if self.drawn else ""
-        block = "\n".join(self.lines())
-        self.stream.write(f"{up}\r{block}\n\x1b[J")  # \x1b[J wipes lines left by fewer workers
-        self.stream.flush()
-        self.drawn = block.count("\n") + 1
+        print(f"\r{self.done} / {self.total} courses, {self.skipped} skipped", end="", file=self.stream, flush=True)
 
     def close(self):
-        self.stopped.set()
-        self.draw()
+        print(file=self.stream)
         for failure in self.failures:
             print(f"failed {failure}", file=self.stream)
 
@@ -220,26 +164,23 @@ def thread_session(language):
 
 
 def fetch(code, grid, progress, language, exam_periods):
-    progress.working_on(code)
-    try:
-        s = thread_session(language)
-        html = s.get(f"{BASE}/course/{code}").text
-        if "pagecontents" not in html:
-            # not offered this year: fall back to the newest archived volume
-            volumes = re.findall(rf'href="/course/(\d{{4}}-\d{{4}})/{code}"', html)
-            if volumes:
-                html = s.get(f"{BASE}/course/{volumes[-1]}/{code}").text
-        course = parse(html, code)
-        if course:
-            course["schedule_slots"] = schedule_slots(course.get("Schedule"), grid)
-            course["semesters"] = semesters(course["schedule_slots"])
+    s = thread_session(language)
+    html = s.get(f"{BASE}/course/{code}").text
+    if "pagecontents" not in html:
+        # not offered this year: fall back to the newest archived volume
+        volumes = re.findall(rf'href="/course/(\d{{4}}-\d{{4}})/{code}"', html)
+        if volumes:
+            html = s.get(f"{BASE}/course/{volumes[-1]}/{code}").text
+    course = parse(html, code)
+    if course:
+        course["schedule_slots"] = schedule_slots(course.get("Schedule"), grid)
+        course["semesters"] = semesters(course["schedule_slots"])
+        if course["schedule_slots"]:  # only the schedule ranks by enrolment, and it needs a weekly slot
             try:
                 course.update(enrolment(s, code, exam_periods))
-            except requests.RequestException as error:  # keep the course, without its enrolment points
+            except (requests.RequestException, ValueError) as error:  # keep the course, without its enrolment points
                 progress.failures.append(f"{code} enrolment: {error}")
-        return course
-    finally:
-        progress.idle()
+    return course
 
 
 def finished_semesters(today=None):
@@ -296,10 +237,10 @@ def scrape(codes=None, language="en-GB", workers=WORKERS, code_range=None, semes
             try:
                 course = future.result()
             except Exception as error:  # one dead course page shouldn't end the run
-                progress.tick(code, found=False, error=f"{code}: {error}")
+                progress.tick(found=False, error=f"{code}: {error}")
                 continue
             keep = bool(course) and (not semester or semester.title() in course["semesters"])
-            progress.tick(code, found=keep)
+            progress.tick(found=keep)
             if keep:
                 yield course
     finally:

@@ -127,7 +127,8 @@ or in your home directory on the server with mode `600`.
 
 [`notebooks/pipeline.py`](../notebooks/pipeline.py) runs the notebooks in `NOTEBOOKS` in order:
 the two processing notebooks, then `visualization/dashboard.ipynb`. It stops at the first error
-and saves no outputs into the notebooks. To run it on your machine:
+and saves no outputs into the notebooks. It doesn't start while a `static_data` table in
+`STATIC_TABLES` is missing, and names the missing ones. To run it on your machine:
 
 ```sh
 cd notebooks
@@ -169,7 +170,7 @@ uv run --group courses python tests/test_course_scrape.py
 ## Fetch dates
 
 `static_data.fetched` holds when each `static_data` table was last fetched from its source, and
-the dashboard shows these dates under its title. `deploy/db-permissions.sql` creates the table. A
+the dashboard shows these dates under its title. `record_fetched` creates the table on first use. A
 notebook that writes a `static_data` table records the date in the same transaction:
 
 ```python

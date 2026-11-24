@@ -34,7 +34,7 @@ def build_schedule(courses, abbreviations, suffixes, semester=None):
     best-scoring courses first: the survey shows only the first 6."""
     schedule = {day: {"morning": [], "afternoon": []} for day in DAYS}
     for course in sorted(courses, key=lambda c: (-c.get("score", 0), c["code"])):
-        abbreviation = abbreviations.get(course["code"], course["name"])
+        abbreviation = abbreviations.get(course["code"]) or course["name"]
         suffix = suffixes.get(course["code"], "")
         if suffix and suffix.strip() not in abbreviation:  # don't repeat a suffix typed by hand
             abbreviation += suffix
@@ -52,16 +52,15 @@ def build_schedule(courses, abbreviations, suffixes, semester=None):
 
 
 def collect_abbreviations(courses, path, suffixes, ask=input):
-    """Ask once per course number, then reuse the answer on later runs. An empty answer, or
-    ask=None, keeps the full name."""
+    """Ask once per course number, then reuse the answer on later runs. An empty answer is
+    stored as "": the schedule shows the course's current name. ask=None asks and stores nothing."""
     store = json.load(open(path)) if os.path.exists(path) else {}
-    missing = [c for c in sorted(courses, key=lambda c: c["code"]) if c["code"] not in store]
+    missing = [c for c in sorted(courses, key=lambda c: c["code"]) if c["code"] not in store] if ask else []
     try:
         for course in missing:
             suffix = suffixes.get(course["code"], "")
             hint = f" [{suffix.strip()} added automatically]" if suffix else ""
-            answer = ask(f"Abbreviation for {course['code']} {course['name']}{hint}: ").strip() if ask else ""
-            store[course["code"]] = answer or course["name"]
+            store[course["code"]] = ask(f"Abbreviation for {course['code']} {course['name']}{hint}: ").strip()
     finally:
         if missing:  # an interrupt mid-way still keeps the answers already given
             json.dump(store, open(path, "w"), indent=2, ensure_ascii=False, sort_keys=True)

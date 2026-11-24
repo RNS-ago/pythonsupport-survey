@@ -62,9 +62,14 @@ if __name__ == "__main__":
     path = os.path.join(tempfile.mkdtemp(), "abbreviations.json")
     json.dump({"01001": "Math 1a"}, open(path, "w"))
     store = compile_schedule.collect_abbreviations(COURSES, path, {}, ask=None)
-    assert store["01001"] == "Math 1a", store
-    assert store["02450"] == "Introduction to Machine Learning", store  # not asked: ask=None
-    assert json.load(open(path))["02450"] == "Introduction to Machine Learning"
+    assert store == {"01001": "Math 1a"}, store  # ask=None asks and stores nothing
+    # Enter stores "", so a renamed course shows its new name and isn't asked again
+    store = compile_schedule.collect_abbreviations(COURSES, path, {}, ask=lambda prompt: "")
+    assert json.load(open(path)) == {"01001": "Math 1a", "01003": "", "02450": ""}, json.load(open(path))
+    renamed = [dict(COURSES[2], name="Machine Learning")]
+    assert compile_schedule.collect_abbreviations(renamed, path, {}, ask=lambda prompt: 1 / 0) == store
+    assert compile_schedule.build_schedule(renamed, store, {})["Tuesday"]["afternoon"][0]["abbreviation"] == \
+        "Machine Learning"
     # Ctrl-C partway through keeps the answers already given
     path = os.path.join(tempfile.mkdtemp(), "abbreviations.json")
     answers = iter(["Math 1a"])
