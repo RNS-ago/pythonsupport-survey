@@ -154,7 +154,8 @@ import goes in one of those.
 ## Student data
 
 [`notebooks/fetching_data/get_student_data.ipynb`](../notebooks/fetching_data/get_student_data.ipynb)
-replaces `static_data.students` with AIT's student view. It reads `AIT_USERNAME` and
+replaces `static_data.students` with AIT's student view, fetched through AIT's SOAP service
+at `idmservices.ait.dtu.dk` with `query_ait` in `pis_lib/connect.py`. It reads `AIT_USERNAME` and
 `AIT_PASSWORD` from a `.env`; on your machine, `notebooks/.env` works. On the server it runs as
 `pis-pipeline`, which reads the login from `notebooks/fetching_data/.env`. The dashboard notebooks
 are in other folders, so they don't load it. Create it with:
@@ -171,6 +172,12 @@ data:
 ```sh
 sudo /srv/pythonsupport-survey/deploy/manage.sh fetch
 sudo /srv/pythonsupport-survey/deploy/manage.sh pipeline
+```
+
+The self-check for reading the service's answers runs from `notebooks/`, without the network:
+
+```sh
+uv run python tests/test_ait.py
 ```
 
 ## Courses

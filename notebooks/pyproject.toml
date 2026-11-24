@@ -38,9 +38,9 @@ pipeline = [
     { include-group = "visualization" },
     "nbclient>=0.11.0",
 ]
-# fetching_data/get_student_data.ipynb (AIT's SQL Server) and update_static_data.ipynb (Excel files).
+# fetching_data/get_student_data.ipynb (AIT's SOAP service) and update_static_data.ipynb (Excel files).
 student-data = [
-    "mssql-python>=1.16.0",
+    "requests>=2.34.2",
     "openpyxl>=3.1.5",
 ]
 # fetching_data/update_courses.ipynb, which scrapes kurser.dtu.dk.
