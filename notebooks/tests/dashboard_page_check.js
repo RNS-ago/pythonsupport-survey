@@ -151,12 +151,16 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 300));
   check(stores() === 0, 'clicking it again removes the pick');
 
   const rows = view.scale('study_lines_y').domain();
-  check(rows[rows.length - 2] === 'Other study lines' && rows[rows.length - 1] === 'Unknown',
-    'study lines end with Other study lines, then Unknown');
-  await click(lineBars().find(item => item.datum.line === 'Unknown'));
-  check(kpi().visits === expected.unknown_line && kpi().verified === expected.unknown_line_verified,
-    'clicking Unknown shows its ' + kpi().visits + ' visits, ' + kpi().verified + ' verified');
-  await click(lineBars().find(item => item.datum.line === 'Unknown'));
+  check(rows.slice(-3).join() === 'Other study lines,N/A,Unknown',
+    'study lines end with Other study lines, N/A, then Unknown');
+  const education = lineBars().find(item => item.datum.line === 'Unknown').datum.education_EN;
+  const unknownPart = () => lineBars().find(item => item.datum.line === 'Unknown' && item.datum.education_EN === education);
+  const [unknownVisits, unknownVerified] = expected.unknown_parts[education];
+  await click(unknownPart());
+  check(kpi().visits === unknownVisits && kpi().verified === unknownVerified,
+    `clicking Unknown's ${education} part shows its ${kpi().visits} visits, ${kpi().verified} verified,` +
+    ` expected ${unknownVisits} and ${unknownVerified}`);
+  await click(unknownPart());
 
   // The Count buttons change what every bar counts.
   await click(items().find(item => item.datum && item.datum.mode === 'Unique visitors' && item.mark.marktype === 'rect'));

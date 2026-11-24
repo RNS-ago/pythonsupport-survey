@@ -21,8 +21,8 @@ COURSES = [f"0{i:04d} - Course {i}" for i in range(25)]
 
 def fake_responses(n=3000):
     """Visits as dashboard.ipynb reads them from processed_responses: anonymous ones before autumn 2024, then student
-    numbers, some not in the student data (Unknown), some in it without an education or study line (Unknown too), and
-    educations without a study line (N/A)."""
+    numbers, some not in the student data (Unknown), some in it without a study line (Unknown too, under their
+    education), and educations without a study line (N/A)."""
     rng = np.random.default_rng(1)
     created = pd.Timestamp("2023-09-04", tz="UTC") + pd.to_timedelta(rng.integers(0, 1150 * 24 * 60, n), unit="min")
     local = created.tz_convert("Europe/Copenhagen")
@@ -33,7 +33,8 @@ def fake_responses(n=3000):
     weights = 1 / np.arange(1, len(LINES) + 1)
     line = rng.choice(LINES, n, p=weights / weights.sum())
     asked = created > pd.Timestamp("2025-09-01", tz="UTC")
-    no_line_data = found & (rng.random(n) < 0.05)
+    has_lines = ~np.isin(education, ["PhD", "Exchange student", "Single course"])
+    no_line_data = found & has_lines & (rng.random(n) < 0.05)
 
     def student(values):
         return pd.Series(np.where(found, values, "Unknown")).where(~anonymous)
@@ -44,9 +45,8 @@ def fake_responses(n=3000):
         "satisfaction": rng.integers(1, 6, n),
         "building_number": rng.choice(["101", "303", "308"], n),
         "gender": student(rng.choice(["Female", "Male"], n)),
-        "education_EN": student(np.where(no_line_data, "Unknown", education)),
-        "direction_DK": student(np.where(no_line_data, "Unknown", np.where(
-            np.isin(education, ["PhD", "Exchange student", "Single course"]), "N/A", line))),
+        "education_EN": student(education),
+        "direction_DK": student(np.where(no_line_data, "Unknown", np.where(has_lines, line, "N/A"))),
         "weekday": local.day_name(),
         "time_slot": np.where(local.hour < 12, "Morning", "Afternoon"),
         "semester": np.where(local.month <= 8, "Spring ", "Fall ") + local.strftime("%y"),
@@ -88,8 +88,9 @@ if __name__ == "__main__":
         dates = [pd.Timestamp("2025-09-03 12:00"), pd.Timestamp("2025-10-29 12:00")]  # mid-week, clear of week starts
         expected = {
             "visits": len(df),
-            "unknown_line": int((df["direction_DK"] == "Unknown").sum()),
-            "unknown_line_verified": int(df.loc[df["direction_DK"] == "Unknown", "verified"].sum()),
+            # Visits and verified visits in each part of Unknown, by education: a click picks one part.
+            "unknown_parts": df[df["direction_DK"] == "Unknown"].groupby("education_EN")["verified"]
+            .agg(["size", "sum"]).astype(int).T.to_dict("list"),
             "semester": variables["CURRENT"],
             "semester_visits": int((df["semester"] == variables["CURRENT"]).sum()),
             "dates": [f"{date:%Y-%m-%dT%H:%M:%S}" for date in dates],  # local time, as the page reads the weeks
