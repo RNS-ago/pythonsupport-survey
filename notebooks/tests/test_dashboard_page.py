@@ -29,7 +29,9 @@ def fake_responses(n=3000):
     anonymous = created < pd.Timestamp("2024-09-01", tz="UTC")
     not_found = ~anonymous & (rng.random(n) < 0.12)
     found = ~anonymous & ~not_found
-    education = rng.choice(["BSc Eng", "BEng", "MSc Eng", "MSc", "PhD", "Exchange student", "Single course"], n)
+    # More than the 8 educations the study lines color: the rest are Other.
+    education = rng.choice(["BSc Eng", "BEng", "MSc Eng", "MSc", "PhD", "Exchange student", "Single course", "BSc",
+                            "Diploma", "Guest student"], n)
     weights = 1 / np.arange(1, len(LINES) + 1)
     line = rng.choice(LINES, n, p=weights / weights.sum())
     asked = created > pd.Timestamp("2025-09-01", tz="UTC")
@@ -96,6 +98,12 @@ if __name__ == "__main__":
             "dates": [f"{date:%Y-%m-%dT%H:%M:%S}" for date in dates],  # local time, as the page reads the weeks
             "dates_visits": int(df["week"].between(*dates).sum()),
             "timeline_width": variables["timeline"].width,
+            "female_visits": int((df["gender"] == "Female").sum()),
+            "yes_no_visits": int(df["ai"].isin(["Yes", "No"]).sum()),
+            "other_visits": int((df["education_group"] == "Other").sum()),
+            "earlier_fall_visits": int(
+                ((df["semester"] != variables["CURRENT"]) & df["semester"].str.startswith("Fall")).sum()
+            ),
         }
         result = subprocess.run([node, str(CHECK), str(page), json.dumps(expected)],
                                 capture_output=True, text=True, timeout=300)

@@ -162,6 +162,47 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 300));
     ` expected ${unknownVisits} and ${unknownVerified}`);
   await click(unknownPart());
 
+  // Legend entries pick as a click on their bar does.
+  function inChart(item, chart) {
+    for (let mark = item.mark; mark; mark = mark.group && mark.group.mark) if (mark.name === chart + '_group') return true;
+    return false;
+  }
+  const entry = (chart, value) => items().find(item => item.mark && item.mark.role === 'legend-label'
+    && item.datum.value === value && inChart(item, chart));
+  await click(entry('weekday', 'Female'));
+  check(view.data('gender_pick_store').length === 1 && kpi().visits === expected.female_visits
+    && chips()[0].children[0].textContent === 'Gender: Female',
+    'clicking Female in a gender legend picks it: ' + kpi().visits + ' visits, expected ' + expected.female_visits);
+  await click(bars('gender_bars_marks').find(item => item.datum.gender === 'Female'));
+  check(stores() === 0, "clicking Female's bar takes the legend's pick back");
+  await click(entry('ai_course', 'Yes'));
+  await click(entry('ai_course', 'No'), true);
+  check(view.data('ai_pick_store').length === 2 && kpi().visits === expected.yes_no_visits,
+    'shift-clicking a second AI legend entry adds it: ' + kpi().visits + ' visits, expected ' + expected.yes_no_visits);
+  await click(entry('ai_course', 'No'));
+  check(view.data('ai_pick_store').length === 1 && view.data('ai_pick_store')[0].values[0] === 'Yes',
+    'clicking a picked entry takes back only that one');
+  await click(entry('ai_course', 'Yes'));
+  await click(entry('study_lines', 'Other'));
+  const otherPick = view.data('education_pick_store')[0];
+  check(otherPick && Array.isArray(otherPick.values[0]) && otherPick.values[0].length > 1
+    && kpi().visits === expected.other_visits && /^Education: \(.+\)$/.test(chips()[0].children[0].textContent),
+    "clicking Other in the study lines' legend picks its educations: " + kpi().visits + ' visits, expected '
+    + expected.other_visits);
+  await click(lineBars().find(item => item.datum.line_rank === 1));
+  await click(entry('study_lines', 'Other'));
+  check(view.data('line_pick_store').length === 1 && view.data('education_pick_store').length === 0,
+    "a click on the study lines' legend keeps the study line picked");
+  await press(panel.children.find(child => child.className === 'clear'));
+  await click(entry('cumulative', 'Earlier Fall semesters'));
+  const fallPick = view.data('semester_pick_store')[0];
+  check(fallPick && Array.isArray(fallPick.values[0]) && !fallPick.values[0].includes(expected.semester)
+    && fallPick.values[0].every(semester => semester.startsWith('Fall')) && kpi().visits === expected.earlier_fall_visits,
+    "clicking Earlier Fall semesters in Cumulative's legend picks them: " + kpi().visits + ' visits, expected '
+    + expected.earlier_fall_visits);
+  await click(entry('cumulative', 'Earlier Fall semesters'));
+  check(stores() === 0, 'clicking it again takes them back');
+
   // The Count buttons change what every bar counts.
   await click(items().find(item => item.datum && item.datum.mode === 'Unique visitors' && item.mark.marktype === 'rect'));
   check(otherParts().every(part => part.datum.lines.rows.reduce((sum, row) => sum + row[1], 0) === part.datum.unique),

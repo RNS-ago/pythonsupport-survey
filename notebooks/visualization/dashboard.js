@@ -1,5 +1,5 @@
-// The page around the dashboard chart. dashboard_template.html defines spec, embedOpt, grow, axes and filterLabels
-// before it.
+// The page around the dashboard chart. dashboard_template.html defines spec, embedOpt, grow, axes, filterLabels and
+// legends before it.
 
 const scheme = document.querySelector('meta[name="color-scheme"]');
 const deviceDark = matchMedia('(prefers-color-scheme: dark)');
@@ -41,7 +41,40 @@ function brushControl(vega) {
   })(vega);
   return vega;
 }
-embedOpt.patch = vega => brushControl(matchHeights(guardBrush(vega)));
+// The entries of the legends in `legends` take clicks. A pick made there must look like one made in the pick's own
+// chart, or a click there can't take it back: each pick's tuple fields and unit, which only its signals hold.
+const pickTuples = {};
+function legendPicks(vega) {
+  (function walk(group) {
+    for (const signal of group.signals || []) {
+      if (signal.name.endsWith('_tuple_fields')) {
+        (pickTuples[signal.name.slice(0, -'_tuple_fields'.length)] ||= {}).fields = signal.value;
+      }
+      for (const handler of signal.on || []) {
+        const [, unit, pick] = /unit: "(\w+)", fields: (\w+)_tuple_fields/.exec(handler.update) || [];
+        if (pick) (pickTuples[pick] ||= {}).unit = unit;
+        // A click on a legend is no click on empty space, which would take the chart's picks back.
+        for (const events of signal.name.endsWith('_tuple') ? [].concat(handler.events) : []) {
+          if (events.type !== 'click') continue;
+          events.filter = [...[].concat(events.filter || []), "!event.item || indexof(event.item.mark.role, 'legend') < 0"];
+        }
+      }
+    }
+    if (group.name && legends[group.name.replace(/_group$/, '')]) {
+      for (const legend of group.legends || []) {
+        legend.encode ||= {};
+        for (const part of ['symbols', 'labels']) {
+          const encode = legend.encode[part] ||= {};
+          encode.interactive = true;
+          encode.update = {...encode.update, cursor: {value: 'pointer'}};
+        }
+      }
+    }
+    (group.marks || []).forEach(walk);
+  })(vega);
+  return vega;
+}
+embedOpt.patch = vega => legendPicks(brushControl(matchHeights(guardBrush(vega))));
 
 // A tooltip as vega-tooltip draws it, a row per field, but a field holding {rows: [[line, visitors], ...]}, as Other
 // study lines has, shows how many there are, then a row each, the largest first.
@@ -273,6 +306,20 @@ vegaEmbed('#vis', spec, embedOpt).then(async ({view}) => {
   };
   view.addEventListener('click', refitAxes);
   view.addEventListener('pointerup', refitAxes);
+  // A click on a legend entry picks its value, or takes it back if picked, as a click on its bar in the pick's own
+  // chart does; shift-click adds one.
+  view.addEventListener('click', (event, item) => {
+    if (!item || !['legend-symbol', 'legend-label'].includes(item.mark.role)) return;
+    let mark = item.mark;
+    while (mark && !legends[(mark.name || '').replace(/_group$/, '')]) mark = mark.group && mark.group.mark;
+    if (!mark) return;
+    const {pick, values = {}} = legends[mark.name.replace(/_group$/, '')];
+    const tuple = {...pickTuples[pick], values: [values[item.datum.value] || item.datum.value]};
+    const picks = view.data(pick + '_store');
+    const kept = picks.filter(other => JSON.stringify(other.values) !== JSON.stringify(tuple.values));
+    setPicks(view, pick, kept.length < picks.length ? kept : event.shiftKey ? [...picks, tuple] : [tuple]);
+    apply();
+  });
   // The opposite of what is on screen. When that is the device's own theme, follow the device again instead of
   // pinning it; a pick stays when the device switches later.
   document.getElementById('theme').addEventListener('click', () => {
