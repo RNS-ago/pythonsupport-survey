@@ -91,7 +91,7 @@ and is the table to start from.
 
 | Folder | What it is |
 | --- | --- |
-| [`notebooks/fetching_data/`](notebooks/fetching_data/) | Load outside data into `static_data`: students, study programmes, courses. |
+| [`notebooks/fetching_data/`](notebooks/fetching_data/) | Load outside data into `static_data`: students, study programmes, courses, study lines' departments. |
 | [`notebooks/processing/`](notebooks/processing/) | Build `processed_responses` from the survey and the old data. |
 | [`notebooks/visualization/`](notebooks/visualization/) | The dashboard shown at `/admin/dashboard/`. |
 | [`notebooks/src/pis_lib/`](notebooks/src/pis_lib/) | Code the notebooks share, imported as `pis_lib`. |

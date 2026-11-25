@@ -26,7 +26,7 @@ GROUPS = {
         "fetching_data/get_student_data.ipynb",
     ],
 }
-STATIC_TABLES = ["old_responses", "students", "courses", "fetched"]  # what the dashboard group reads from static_data
+STATIC_TABLES = ["old_responses", "students", "courses", "study_lines", "fetched"]  # what the dashboard group reads from static_data
 
 group = sys.argv[1] if len(sys.argv) > 1 else "dashboard"
 if group not in GROUPS:

@@ -43,7 +43,7 @@ student-data = [
     "requests>=2.34.2",
     "openpyxl>=3.1.5",
 ]
-# fetching_data/update_courses.ipynb, which scrapes kurser.dtu.dk.
+# fetching_data/update_courses.ipynb, which scrapes kurser.dtu.dk, and update_study_lines.ipynb, sdb.dtu.dk.
 courses = [
     "beautifulsoup4>=4.15.0",
     "requests>=2.34.2",

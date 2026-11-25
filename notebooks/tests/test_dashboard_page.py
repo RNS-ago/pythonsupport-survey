@@ -49,6 +49,8 @@ def fake_responses(n=3000):
         "gender": student(rng.choice(["Female", "Male"], n)),
         "education_EN": student(education),
         "direction_DK": student(np.where(no_line_data, "Unknown", np.where(has_lines, line, "N/A"))),
+        "line_department": student(np.where(no_line_data, "Unknown", np.where(
+            has_lines, rng.choice(["DTU Compute", "DTU Physics", "DTU Construct"], n), "N/A"))),
         "weekday": local.day_name(),
         "time_slot": np.where(local.hour < 12, "Morning", "Afternoon"),
         "semester": np.where(local.month <= 8, "Spring ", "Fall ") + local.strftime("%y"),
@@ -56,7 +58,7 @@ def fake_responses(n=3000):
         "verified": found,
         "ai": np.where(asked, rng.choice(["Yes", "No", "No answer"], n), None),
         "course": np.where(asked, rng.choice(COURSES + [None] * 5, n), None),
-        "department": np.where(asked, rng.choice(["01 Department of Applied Mathematics", "10 Department of Physics"], n), None),
+        "department": np.where(asked, rng.choice(["DTU Compute", "DTU Physics"], n), None),
     })
 
 
@@ -101,6 +103,7 @@ if __name__ == "__main__":
             "female_visits": int((df["gender"] == "Female").sum()),
             "yes_no_visits": int(df["ai"].isin(["Yes", "No"]).sum()),
             "other_visits": int((df["education_group"] == "Other").sum()),
+            "compute_line_visits": int((df["line_department"] == "DTU Compute").sum()),
             "earlier_fall_visits": int(
                 ((df["semester"] != variables["CURRENT"]) & df["semester"].str.startswith("Fall")).sum()
             ),

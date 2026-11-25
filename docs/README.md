@@ -35,6 +35,7 @@
   - [Connecting from a notebook](data-analysis.md#connecting-from-a-notebook)
   - [Pipeline](data-analysis.md#pipeline)
   - [Courses](data-analysis.md#courses)
+  - [Study lines](data-analysis.md#study-lines)
   - [Fetch dates](data-analysis.md#fetch-dates)
   - [Old data](data-analysis.md#old-data)
 

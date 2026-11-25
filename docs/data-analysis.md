@@ -12,6 +12,7 @@ local socket.
 - [Pipeline](#pipeline)
 - [Student data](#student-data)
 - [Courses](#courses)
+- [Study lines](#study-lines)
 - [Fetch dates](#fetch-dates)
 - [Old data](#old-data)
 
@@ -73,7 +74,7 @@ need are in groups in `notebooks/pyproject.toml`; add the ones you need:
 | `visualization` | `visualization/dashboard.ipynb` and other Altair charts |
 | `pipeline` | `pipeline.py`; includes `visualization` |
 | `student-data` | `fetching_data/get_student_data.ipynb` and `update_static_data.ipynb` |
-| `courses` | `fetching_data/update_courses.ipynb` and its tests |
+| `courses` | `fetching_data/update_courses.ipynb`, `update_study_lines.ipynb` and their tests |
 
 ```sh
 uv sync --group visualization --group courses
@@ -198,7 +199,8 @@ scrapes kurser.dtu.dk and writes:
 - `frontend/data/courseSchedule.json`: the course buttons for the current weekday and half day,
   for the semester in `SEMESTER`.
 - `static_data.courses`: course names and departments for the `course` and `department` columns
-  of `processed_responses`. It keeps courses DTU no longer offers.
+  of `processed_responses`. It keeps courses DTU no longer offers. `department` gives a department's short
+  name, `DTU Compute`, by its number in `pis_lib/departments.py`.
 
 Run it on your machine, after `uv sync --group courses`, when DTU publishes next year's courses,
 and before each semester. It asks
@@ -212,6 +214,25 @@ The scraper is in `notebooks/src/pis_lib/courses/`. Its self-checks run from `no
 uv run --group courses python tests/test_course_rank.py
 uv run --group courses python tests/test_course_schedule.py
 uv run --group courses python tests/test_course_scrape.py
+```
+
+## Study lines
+
+[`notebooks/fetching_data/update_study_lines.ipynb`](../notebooks/fetching_data/update_study_lines.ipynb)
+scrapes DTU's study database, sdb.dtu.dk, and writes `static_data.study_lines`: the department of each
+education's study lines, for the `line_department` column of `processed_responses`. sdb.dtu.dk names no
+department a line belongs to, so this is the department of the line's head of studies. It is a proxy: a head of
+studies normally comes from the department that runs the line.
+
+The notebook lists the study lines in `static_data.students` it found no department for. Usually DTU names the
+programme in a way `DIRECTION_LABELS`, in `pis_lib/study_lines.py`, doesn't turn into the line's label: add the
+name there and run it again.
+
+Run it on your machine, after `uv sync --group courses`, when DTU publishes next year's study handbook. The
+database is written directly. Its self-check runs from `notebooks/`, without sdb.dtu.dk:
+
+```sh
+uv run --group courses python tests/test_study_lines.py
 ```
 
 ## Fetch dates

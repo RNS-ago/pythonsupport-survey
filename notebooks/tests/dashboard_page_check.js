@@ -162,6 +162,22 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 300));
     ` expected ${unknownVisits} and ${unknownVerified}`);
   await click(unknownPart());
 
+  // Study line department: N/A and Unknown last, a click filters by it.
+  check(view.scale('line_department_bars_y').domain().slice(-2).join() === 'N/A,Unknown',
+    'study line departments end with N/A, then Unknown');
+  const departmentBars = bars('line_department_bars_marks');
+  check(departmentBars.length > 1 && departmentBars.every(bar => bar.datum.lines.rows.length
+    && bar.datum.lines.rows.reduce((sum, row) => sum + row[1], 0) === bar.datum.visitors)
+    && Object.keys(departmentBars[0].tooltip).join() === 'Study line department,Average rating,Study lines,'
+      + 'All visitors,Identified visitors,Verified visitors,Unique visitors',
+    "each study line department's tooltip lists the study lines that add up to it, between the rating and the counts");
+  await click(bars('line_department_bars_marks').find(item => item.datum.line_department === 'DTU Compute'));
+  check(kpi().visits === expected.compute_line_visits
+    && chips()[0].children[0].textContent === 'Study line department: DTU Compute',
+    'clicking DTU Compute in Study line department filters to its ' + kpi().visits + ' visits, expected '
+    + expected.compute_line_visits);
+  await press(panel.children.find(child => child.className === 'clear'));
+
   // Legend entries pick as a click on their bar does.
   function inChart(item, chart) {
     for (let mark = item.mark; mark; mark = mark.group && mark.group.mark) if (mark.name === chart + '_group') return true;
